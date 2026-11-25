@@ -46,6 +46,11 @@
             font-family: 'JetBrains Mono', monospace;
             font-variant-numeric: tabular-nums;
         }
+        .rbac-disabled {
+            opacity: 0.45 !important;
+            pointer-events: none !important;
+            cursor: not-allowed !important;
+        }
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -102,6 +107,239 @@
     </style>
 </head>
 <body class="text-slate-800 antialiased selection:bg-tealgov-700 selection:text-white">
+
+    <!-- ===================================================================== -->
+    <!-- LOGIN & ACCESS GATE OVERLAY (WEB CRYPTO SHA-256 + SALT + RBAC)        -->
+    <!-- ===================================================================== -->
+    <div id="login-overlay" class="fixed inset-0 z-50 bg-gradient-to-br from-gov-950 via-gov-900 to-slate-900 flex items-center justify-center p-4 overflow-y-auto no-print">
+        <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto">
+            <!-- Left Panel: Village & RBAC Overview -->
+            <div class="lg:col-span-6 bg-gradient-to-br from-gov-950 via-gov-900 to-tealgov-700 text-white p-6 sm:p-8 flex flex-col justify-between">
+                <div>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-mono text-teal-200 font-bold">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                        <span>SISKEUDES v2.07 • RBAC & SHA-256</span>
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold mt-4 leading-tight">Portal Autentikasi & Akses Keuangan Desa</h1>
+                    <p id="login-desa-info" class="text-xs sm:text-sm text-teal-100/90 mt-2">
+                        Pemerintah Desa Ridogalih • Kec. Cibarusah, Kab. Bekasi • Kode: 32.16.22.2005 • TA 2027
+                    </p>
+
+                    <!-- Helper Demo Credentials -->
+                    <div class="mt-6 bg-slate-950/50 border border-white/15 rounded-2xl p-4 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-teal-300">Akun Uji Coba (Klik untuk Isi Otomatis)</span>
+                            <span class="text-[10px] font-mono text-slate-300">SHA-256 + Salt</span>
+                        </div>
+                        <div id="demo-credentials-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- GitHub Pages Static Security Guidance -->
+                <div class="mt-6 pt-4 border-t border-white/15 text-[11px] text-slate-200/90 space-y-1.5 leading-relaxed">
+                    <p class="font-bold text-amber-300 flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                        <span>Panduan Keamanan Hosting Statis (GitHub Pages):</span>
+                    </p>
+                    <p>Password di-hash menggunakan <b>Web Crypto API (SHA-256 + random salt)</b> di browser. Karena hosting statis GitHub Pages tidak memiliki server autentikasi rahasia, hindari menyimpan data penduduk/NIK/rekening sensitif pada repo publik, dan gunakan <b>Optional Cloud Sync</b> atau lingkungan internal terproteksi untuk data aktual desa.</p>
+                </div>
+            </div>
+
+            <!-- Right Panel: Login Form -->
+            <div class="lg:col-span-6 p-6 sm:p-8 flex flex-col justify-center bg-white">
+                <div class="mb-5">
+                    <h2 class="text-xl font-extrabold text-gov-900">Masuk ke Workspace</h2>
+                    <p class="text-xs text-slate-500 mt-1">Masukkan Username / NIP / Email, kata sandi, dan pilih peran akses Anda.</p>
+                </div>
+
+                <div id="login-error-box" class="hidden mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                    <span id="login-error-text">Kredensial tidak valid.</span>
+                </div>
+
+                <form id="form-login" onsubmit="handleLoginSubmit(event)" class="space-y-4 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Username / NIP / Email</label>
+                        <div class="relative">
+                            <input type="text" id="login-identifier" required placeholder="Contoh: admin.desa atau 19850412..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-tealgov-700 focus:border-tealgov-700 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Kata Sandi (Password)</label>
+                        <div class="relative">
+                            <input type="password" id="login-password" required placeholder="Masukkan kata sandi" class="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 font-mono focus:ring-2 focus:ring-tealgov-700 focus:border-tealgov-700 outline-none">
+                            <button type="button" onclick="toggleLoginPasswordVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1" title="Tampilkan / Sembunyikan Password">
+                                <i id="login-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Peran Akses (Role)</label>
+                        <select id="login-role" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-semibold bg-white focus:ring-2 focus:ring-tealgov-700 outline-none">
+                            <option value="ADMIN">Admin / Operator Desa (Akses Penuh)</option>
+                            <option value="SEKDES">Sekretaris Desa / Evaluator (Lihat, Cetak & Review)</option>
+                            <option value="BENDAHARA">Bendahara / Kaur Keuangan (SPP, BKU, Pajak, Pendapatan, Laporan)</option>
+                            <option value="BPD">Viewer / BPD (Hanya Baca & Cetak Laporan)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <label class="inline-flex items-center gap-2 text-slate-600 font-medium cursor-pointer">
+                            <input type="checkbox" id="login-remember-role" checked class="rounded text-tealgov-700">
+                            <span>Ingat sesi browser (auto-lock 20 menit idle)</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-extrabold text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2 transition">
+                        <i data-lucide="log-in" class="w-4 h-4"></i>
+                        <span>Masuk Aplikasi</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL ADMIN: USER & ACCESS CONTROL + OPTIONAL CLOUD SYNC SETTINGS      -->
+    <!-- ===================================================================== -->
+    <div id="admin-users-modal" class="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-50 hidden items-center justify-center p-2 sm:p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="bg-gov-900 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="users-cog" class="w-5 h-5 text-teal-300"></i>
+                    <div>
+                        <h3 class="text-base font-bold">Manajemen Pengguna, Peran (RBAC) & Keamanan</h3>
+                        <p class="text-[11px] text-slate-300">Kelola akun pengguna, reset password (SHA-256 + salt), dan konfigurasi sinkronisasi cloud opsional</p>
+                    </div>
+                </div>
+                <button onclick="closeAdminUsersModal()" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+                <!-- Matriks Hak Akses RBAC -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <h4 class="font-bold text-gov-900 uppercase tracking-wider text-[11px] mb-2.5">Matriks Hak Akses Peran (RBAC)</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[11px] border border-slate-200 bg-white rounded-lg overflow-hidden">
+                            <thead class="bg-slate-100 text-slate-700 font-bold">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">Peran</th>
+                                    <th class="px-3 py-2 text-center">Dashboard & Parameter</th>
+                                    <th class="px-3 py-2 text-center">RPJMDes & RKPDes</th>
+                                    <th class="px-3 py-2 text-center">Pendapatan (Akun 4)</th>
+                                    <th class="px-3 py-2 text-center">Belanja RAB (5) & Pembiayaan (6)</th>
+                                    <th class="px-3 py-2 text-center">SPP, BKU & Pajak</th>
+                                    <th class="px-3 py-2 text-center">Laporan & Kelola User</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr>
+                                    <td class="px-3 py-2 font-bold text-gov-900">Admin / Operator Desa</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Cetak + Admin User</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-3 py-2 font-bold text-slate-800">Sekretaris Desa / Evaluator</td>
+                                    <td class="px-3 py-2 text-center text-sky-700 font-semibold">Lihat + Edit Par</td>
+                                    <td class="px-3 py-2 text-center text-sky-700 font-semibold">Review + Edit</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-sky-700 font-semibold">Cetak + Evaluasi</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-3 py-2 font-bold text-slate-800">Bendahara / Kaur Keuangan</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-emerald-700 font-bold">Full Edit</td>
+                                    <td class="px-3 py-2 text-center text-sky-700 font-semibold">Cetak Laporan</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-3 py-2 font-bold text-slate-800">Viewer / BPD</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-slate-600">Baca Saja</td>
+                                    <td class="px-3 py-2 text-center text-sky-700 font-semibold">Baca & Cetak Saja</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Form Tambah / Reset Pengguna -->
+                <form onsubmit="handleSaveUserAccount(event)" class="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+                    <div class="lg:col-span-3">
+                        <label class="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
+                        <input type="text" id="new-user-name" required placeholder="Nama pejabat/operator" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label class="block font-bold text-slate-700 mb-1">Username / NIP / Email</label>
+                        <input type="text" id="new-user-id" required placeholder="contoh: kaur.keu" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Role</label>
+                        <select id="new-user-role" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-semibold">
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="SEKDES">SEKDES</option>
+                            <option value="BENDAHARA">BENDAHARA</option>
+                            <option value="BPD">BPD</option>
+                        </select>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Password Baru</label>
+                        <input type="password" id="new-user-pass" required minlength="6" placeholder="Min 6 karakter" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <button type="submit" class="w-full py-2 px-3 rounded-lg bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold transition">
+                            + Simpan Akun
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Tabel Daftar Akun Pengguna -->
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-100 text-slate-700 font-bold uppercase">
+                            <tr>
+                                <th class="px-3 py-2.5">Nama Pengguna</th>
+                                <th class="px-3 py-2.5">Username / NIP / Email</th>
+                                <th class="px-3 py-2.5 text-center">Role</th>
+                                <th class="px-3 py-2.5 font-mono">Salt (Preview)</th>
+                                <th class="px-3 py-2.5 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-users-list" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+
+                <!-- Optional Cloud Sync Mode Toggle (Stored in State) -->
+                <div class="bg-teal-50/70 border border-teal-200 rounded-xl p-4 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-gov-900">Mode Sinkronisasi Cloud Opsional (Firebase Auth / Firestore)</span>
+                        <label class="inline-flex items-center gap-2 font-bold text-tealgov-700 cursor-pointer">
+                            <input type="checkbox" id="cloud-sync-toggle" onchange="toggleCloudSyncMode(this.checked)" class="rounded">
+                            <span>Aktifkan Mode Cloud Sync</span>
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-600">
+                        Secara default, autentikasi SHA-256 + salt dan database anggaran berjalan lokal di browser (<code>localStorage</code>) agar tetap cepat dan mandiri di GitHub Pages. Mode Cloud Sync disiapkan sebagai penanda kesiapan integrasi backend/Firestore eksternal tanpa memblokir penggunaan lokal.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 no-print"></div>
@@ -220,7 +458,7 @@
 
                     <div class="sm:col-span-2 lg:col-span-12 flex justify-end gap-2 pt-1">
                         <button type="button" id="btn-cancel-rab-item" onclick="resetFormRabItem()" class="hidden px-3 py-1.5 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold">Batal Edit</button>
-                        <button type="submit" id="btn-submit-rab-item" class="px-4 py-2 rounded-lg bg-tealgov-700 text-white text-xs font-bold hover:bg-tealgov-600 transition flex items-center gap-1.5">
+                        <button type="submit" id="btn-submit-rab-item" data-rbac-write="BELANJA" class="px-4 py-2 rounded-lg bg-tealgov-700 text-white text-xs font-bold hover:bg-tealgov-600 transition flex items-center gap-1.5">
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Item RAB
                         </button>
                     </div>
@@ -356,8 +594,11 @@
         </nav>
 
         <!-- Footer Sidebar -->
-        <div class="p-3 border-t border-slate-800 bg-gov-900/50">
-            <button onclick="confirmResetAll()" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 hover:text-white transition">
+        <div class="p-3 border-t border-slate-800 bg-gov-900/50 space-y-2">
+            <button onclick="openAdminUsersModal()" id="btn-open-admin-users" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-teal-200 bg-teal-500/10 border border-teal-500/20 hover:bg-teal-600 hover:text-white transition">
+                <i data-lucide="users-cog" class="w-3.5 h-3.5"></i> Kelola Akun & RBAC
+            </button>
+            <button onclick="confirmResetAll()" data-rbac-write="ADMIN_ONLY" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-600 hover:text-white transition">
                 <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Data Default
             </button>
         </div>
@@ -378,10 +619,10 @@
                         
                         <!-- GLOBAL BUDGET PHASE TOGGLE (MURNI vs PAK) -->
                         <div class="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200">
-                            <button onclick="setBudgetPhase('MURNI')" id="btn-phase-murni" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition">
+                            <button onclick="setBudgetPhase('MURNI')" id="btn-phase-murni" data-rbac-write="ANGGARAN" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition">
                                 APBDes Murni (Awal)
                             </button>
-                            <button onclick="setBudgetPhase('PAK')" id="btn-phase-pak" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition">
+                            <button onclick="setBudgetPhase('PAK')" id="btn-phase-pak" data-rbac-write="ANGGARAN" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition">
                                 APBDes Perubahan (PAK)
                             </button>
                         </div>
@@ -396,9 +637,18 @@
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="flex items-center gap-2">
-                <label class="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Restore Backup JSON">
+            <!-- Quick Actions + Active User & Lock Screen -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div id="session-user-pill" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 border border-teal-200 text-gov-900 text-xs font-bold">
+                    <i data-lucide="user-check" class="w-3.5 h-3.5 text-tealgov-700"></i>
+                    <span id="top-user-label">Operator</span>
+                    <span id="top-role-badge" class="px-1.5 py-0.5 rounded bg-gov-900 text-white text-[10px] font-mono">ADMIN</span>
+                </div>
+                <button onclick="lockSession('Dikunci manual oleh pengguna')" class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 transition" title="Kunci Layar (Lock Screen)">
+                    <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                    <span>Lock Screen</span>
+                </button>
+                <label data-rbac-write="ADMIN_ONLY" class="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Restore Backup JSON">
                     <i data-lucide="upload" class="w-3.5 h-3.5"></i>
                     <span class="hidden md:inline">Restore</span>
                     <input type="file" accept=".json" onchange="importJSON(event)" class="hidden">
@@ -660,7 +910,7 @@
                     </div>
 
                     <div class="flex justify-end">
-                        <button type="submit" class="px-6 py-2.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white text-xs font-bold shadow-md flex items-center gap-2 transition">
+                        <button type="submit" data-rbac-write="PARAMETER" class="px-6 py-2.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white text-xs font-bold shadow-md flex items-center gap-2 transition">
                             <i data-lucide="save" class="w-4 h-4"></i> Simpan Parameter Desa
                         </button>
                     </div>
@@ -682,7 +932,7 @@
                 <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
                     <div class="flex items-center justify-between">
                         <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700">Visi & Misi Pembangunan Desa (Periode <span id="rpjm-periode-lbl">2025 - 2030</span>)</h3>
-                        <button onclick="saveVisiMisi()" class="px-3 py-1.5 rounded-lg bg-gov-900 text-white text-xs font-bold hover:bg-gov-800 transition">Simpan Visi & Misi</button>
+                        <button onclick="saveVisiMisi()" data-rbac-write="PERENCANAAN" class="px-3 py-1.5 rounded-lg bg-gov-900 text-white text-xs font-bold hover:bg-gov-800 transition">Simpan Visi & Misi</button>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
                         <div>
@@ -742,7 +992,7 @@
                                 <label class="inline-flex items-center gap-1"><input type="checkbox" id="rpjm-th5" class="rounded"> Th-5</label>
                                 <label class="inline-flex items-center gap-1"><input type="checkbox" id="rpjm-th6" class="rounded"> Th-6</label>
                             </div>
-                            <button type="submit" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold flex items-center gap-1.5 transition">
+                            <button type="submit" data-rbac-write="PERENCANAAN" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold flex items-center gap-1.5 transition">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan ke Matriks RPJMDes
                             </button>
                         </div>
@@ -826,7 +1076,7 @@
                             </select>
                         </div>
                         <div class="lg:col-span-9 flex justify-end">
-                            <button type="submit" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold flex items-center gap-1.5 transition">
+                            <button type="submit" data-rbac-write="PERENCANAAN" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold flex items-center gap-1.5 transition">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Usulan RKPDes
                             </button>
                         </div>
@@ -924,7 +1174,7 @@
                         </div>
                         <div class="lg:col-span-9 flex justify-end gap-2">
                             <button type="button" id="btn-cancel-pend" onclick="resetFormPendapatan()" class="hidden px-3 py-2 rounded-xl bg-slate-100 text-slate-600 font-semibold">Batal</button>
-                            <button type="submit" id="btn-submit-pend" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
+                            <button type="submit" id="btn-submit-pend" data-rbac-write="PENDAPATAN" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Pendapatan
                             </button>
                         </div>
@@ -1010,7 +1260,7 @@
                             </select>
                         </div>
                         <div class="sm:col-span-2 lg:col-span-12 flex justify-end">
-                            <button type="submit" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
+                            <button type="submit" data-rbac-write="BELANJA" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
                                 <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i> Buat Kegiatan & Isi RAB
                             </button>
                         </div>
@@ -1129,7 +1379,7 @@
                             <input type="number" id="pemb-pak" required min="0" step="1000" value="0" class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/50 font-mono font-bold">
                         </div>
                         <div class="lg:col-span-9 flex justify-end">
-                            <button type="submit" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
+                            <button type="submit" data-rbac-write="PEMBIAYAAN" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Pembiayaan
                             </button>
                         </div>
@@ -1226,7 +1476,7 @@
                             </select>
                         </div>
                         <div class="lg:col-span-3 flex justify-end">
-                            <button type="submit" class="w-full px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center justify-center gap-1.5 transition">
+                            <button type="submit" data-rbac-write="PENATAUSAHAAN" class="w-full px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center justify-center gap-1.5 transition">
                                 <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Catat ke BKU
                             </button>
                         </div>
@@ -1285,17 +1535,32 @@
     <!-- ===================================================================== -->
     <script>
         const STORAGE_KEY = 'siskeudes_fullcycle_v207';
+        const SESSION_KEY = 'siskeudes_session_v207';
+        const IDLE_TIMEOUT_MS = 20 * 60 * 1000; // Auto-lock setelah 20 menit tidak aktif
 
-        const SUMBER_DANA_REF = [
-            { kode: 'PAD', nama: 'Pendapatan Asli Desa' },
-            { kode: 'DDS', nama: 'Dana Desa (APBN)' },
-            { kode: 'ADD', nama: 'Alokasi Dana Desa (APBD Kab)' },
-            { kode: 'PBH', nama: 'Bagi Hasil Pajak & Retribusi Daerah' },
-            { kode: 'PBP', nama: 'Bantuan Keuangan Provinsi' },
-            { kode: 'PBK', nama: 'Bantuan Keuangan Kabupaten/Kota' },
-            { kode: 'SWD', nama: 'Swadaya, Partisipasi & Gotong Royong' },
-            { kode: 'DLL', nama: 'Lain-Lain Pendapatan Sah / SILPA' }
-        ];
+        // Definisi Hak Akses Per Role (RBAC)
+        const ROLE_PERMISSIONS = {
+            ADMIN: {
+                label: 'Admin / Operator Desa',
+                writeScopes: ['PARAMETER', 'PERENCANAAN', 'PENDAPATAN', 'BELANJA', 'PEMBIAYAAN', 'PENATAUSAHAAN', 'ANGGARAN', 'ADMIN_ONLY'],
+                canManageUsers: true
+            },
+            SEKDES: {
+                label: 'Sekretaris Desa / Evaluator',
+                writeScopes: ['PARAMETER', 'PERENCANAAN'],
+                canManageUsers: false
+            },
+            BENDAHARA: {
+                label: 'Bendahara / Kaur Keuangan',
+                writeScopes: ['PENDAPATAN', 'PENATAUSAHAAN'],
+                canManageUsers: false
+            },
+            BPD: {
+                label: 'Viewer / BPD',
+                writeScopes: [],
+                canManageUsers: false
+            }
+        };
 
         const BIDANG_REF = [
             '1. Penyelenggaraan Pemerintahan Desa',
@@ -1305,9 +1570,19 @@
             '5. Penanggulangan Bencana & Mendesak'
         ];
 
-        // Database Lengkap (RPJMDes 6 Th, RKPDes, APBDes Murni & APBDes Perubahan PAK — Semuanya Balance SILPA = 0)
+        const SUMBER_DANA_REF = [
+            { kode: 'DDS', nama: 'Dana Desa (APBN)' },
+            { kode: 'ADD', nama: 'Alokasi Dana Desa (APBD Kab)' },
+            { kode: 'PAD', nama: 'Pendapatan Asli Desa' },
+            { kode: 'PBH', nama: 'Bagi Hasil Pajak & Retribusi Daerah' },
+            { kode: 'PBP', nama: 'Bantuan Keuangan Provinsi' },
+            { kode: 'PBK', nama: 'Bantuan Keuangan Kabupaten' },
+            { kode: 'SWD', nama: 'Swadaya & Gotong Royong' },
+            { kode: 'DLL', nama: 'Pendapatan Lain-lain / SILPA' }
+        ];
+
         const INITIAL_STATE = {
-            budgetPhase: 'PAK', // 'MURNI' atau 'PAK'
+            budgetPhase: 'PAK',
             parameter: {
                 kodeDesa: '32.16.22.2005',
                 namaDesa: 'Pemerintah Desa Ridogalih',
@@ -1316,117 +1591,133 @@
                 provinsi: 'Jawa Barat',
                 tahun: '2027',
                 periodeRpjm: '2025 - 2030',
-                npwp: '00.418.925.4-432.000',
-                rekening: '0089-01-002418-30-7 (Bank BJB Cabang Cikarang)',
-                alamat: 'Jl. Raya Ridogalih No. 01, Kec. Cibarusah, Kab. Bekasi, Jawa Barat 17340',
-                kades: 'H. KOMARUDIN, S.Pd',
+                npwp: '00.123.456.7-432.000',
+                rekening: '0098-1122-3344-5 (Bank BJB Cab. Cikarang)',
+                alamat: 'Jl. Raya Desa Ridogalih No. 01, Kec. Cibarusah, Kab. Bekasi 17340',
+                kades: 'H. KOMARUDIN, S.Pd.I',
                 sekdes: 'ASEP SAEPUDIN, S.IP',
                 kaurKeu: 'SITI NURJANAH, S.E',
-                kaurPer: 'DEDI SUPRIADI',
-                kasiPem: 'AHMAD FAUZI, S.Sos',
-                kasiKes: 'HENDRA GUNAWAN',
-                kasiPel: 'NANA SURYANA',
+                kaurPer: 'DEDI SUPRIADI, S.Kom',
+                kasiPem: 'AHMAD FAUZI',
+                kasiKes: 'HENDRA GUNAWAN, S.T',
+                kasiPel: 'RINA MARLINA, S.Kep',
                 ketuaBpd: 'H. ENDANG SUHERMAN',
-                perdesRpjm: 'Nomor 01 Tahun 2025 Tanggal 15 Februari 2025',
-                perdesRkp: 'Nomor 04 Tahun 2026 Tanggal 28 September 2026',
-                perdesApbdes: 'Nomor 06 Tahun 2026 Tanggal 30 Desember 2026',
-                perdesPak: 'Nomor 03 Tahun 2027 Tanggal 14 Agustus 2027',
+                perdesRpjm: 'Perdes No. 02 Tahun 2025',
+                perdesRkp: 'Perdes No. 05 Tahun 2026',
+                perdesApbdes: 'Perdes No. 07 Tahun 2026',
+                perdesPak: 'Perdes No. 03 Tahun 2027',
                 tglPenetapan: 'Ridogalih, 30 Desember 2026',
-                tglPenetapanPak: 'Ridogalih, 14 Agustus 2027',
-                visi: 'Terwujudnya Desa Ridogalih yang Maju, Mandiri, Transparan, dan Sejahtera Berbasis Digitalisasi Tata Kelola Desa',
-                misi: '1) Meningkatkan kualitas pelayanan publik desa berbasis digital; 2) Mempercepat pembangunan infrastruktur & ketahanan pangan berkelanjutan; 3) Memperkuat kelembagaan ekonomi desa (BUMDes & UMKM).'
+                tglPenetapanPak: 'Ridogalih, 15 Agustus 2027',
+                visi: 'Terwujudnya Desa Ridogalih yang Mandiri, Maju, Sejahtera, dan Berdaya Saing Berbasis Tata Kelola Pemerintahan Digital.',
+                misi: '1) Meningkatkan kualitas pelayanan publik digital; 2) Memperkuat infrastruktur dasar & ketahanan pangan; 3) Memberdayakan BUMDes dan UMKM masyarakat.'
             },
             rpjmdes: [
-                { id: 11, bidang: '1. Penyelenggaraan Pemerintahan Desa', program: 'Digitalisasi Pelayanan Administrasi Desa & Smart Village', lokasi: 'Kantor Desa / 4.200 Jiwa', th1: true, th2: true, th3: true, th4: true, th5: true, th6: true, biaya: 320000000, sumber: 'PBH' },
-                { id: 12, bidang: '2. Pelaksanaan Pembangunan Desa', program: 'Peningkatan Jalan Lingkungan Rabat Beton Antar Dusun (2.500 Meter)', lokasi: 'Dusun I, II & III', th1: true, th2: true, th3: true, th4: true, th5: false, th6: false, biaya: 1850000000, sumber: 'DDS' },
-                { id: 13, bidang: '2. Pelaksanaan Pembangunan Desa', program: 'Pembangunan Sarana Air Bersih (PAMSIMAS) & Sanitasi Layak', lokasi: 'Dusun II & III / 350 KK', th1: false, th2: true, th3: true, th4: false, th5: false, th6: false, biaya: 450000000, sumber: 'DDS' },
-                { id: 14, bidang: '4. Pemberdayaan Masyarakat Desa', program: 'Pengembangan Lumbung Pangan Desa & Penyertaan Modal BUMDes', lokasi: 'Seluruh Desa / 8 Poktan', th1: true, th2: true, th3: true, th4: true, th5: true, th6: true, biaya: 1200000000, sumber: 'DDS' },
-                { id: 15, bidang: '2. Pelaksanaan Pembangunan Desa', program: 'Pembangunan Gedung Posyandu Terpadu & Rumah Gizi Desa', lokasi: 'Dusun III RW 05', th1: false, th2: false, th3: true, th4: true, th5: false, th6: false, biaya: 175000000, sumber: 'PBP' }
+                { id: 1, bidang: '1. Penyelenggaraan Pemerintahan Desa', program: 'Digitalisasi Pelayanan Administrasi & Profil Desa Terpadu', lokasi: 'Kantor Desa / 6 Tahun', th1: true, th2: true, th3: true, th4: true, th5: true, th6: true, biaya: 420000000, sumber: 'PBH' },
+                { id: 2, bidang: '2. Pelaksanaan Pembangunan Desa', program: 'Peningkatan Jalan Lingkungan Rabat Beton & Drainase Dusun I–III', lokasi: 'Dusun I, II, III / 2.400 m', th1: true, th2: true, th3: true, th4: true, th5: false, th6: false, biaya: 2150000000, sumber: 'DDS' },
+                { id: 3, bidang: '2. Pelaksanaan Pembangunan Desa', program: 'Revitalisasi Posyandu & Penurunan Angka Stunting Terintegrasi', lokasi: '6 Posyandu RW 01–06', th1: true, th2: true, th3: true, th4: true, th5: true, th6: true, biaya: 540000000, sumber: 'DDS' },
+                { id: 4, bidang: '4. Pemberdayaan Masyarakat Desa', program: 'Pengembangan Lumbung Pangan & Penyertaan Modal BUMDes', lokasi: 'BUMDes Ridogalih Mandiri', th1: false, th2: true, th3: true, th4: true, th5: true, th6: false, biaya: 1350000000, sumber: 'DDS' }
             ],
             rkpdes: [
-                { id: 21, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Peningkatan Jalan Lingkungan Rabat Beton Dusun I & II', lokasi: 'Dusun I & II / 520 Meter', pka: 'Kasi Kesejahteraan', pagu: 442000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
-                { id: 22, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Pembangunan Saluran Drainase & Gorong-Gorong Poros Desa', lokasi: 'Dusun II RW 03 / 210 Meter', pka: 'Kasi Kesejahteraan', pagu: 150000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
-                { id: 23, bidang: '4. Pemberdayaan Masyarakat Desa', kegiatan: 'Program Ketahanan Pangan Nabati & Hewani Desa (Min 20% DD)', lokasi: 'Kelompok Tani Desa / 1 Paket', pka: 'Kasi Kesejahteraan', pagu: 255000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
-                { id: 24, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Pembangunan Gedung Posyandu Terpadu & Rumah Gizi RW 05', lokasi: 'Dusun III RW 05 / 1 Unit', pka: 'Kasi Kesejahteraan', pagu: 175000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Layak APBDes' },
-                { id: 25, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Rehabilitasi Jembatan Penghubung Antar Kecamatan', lokasi: 'Batas Desa / 1 Unit', pka: 'Kasi Kesejahteraan', pagu: 850000000, kategori: 'DU-RKPDes (Usulan Kabupaten)', status: 'Usulan DU-RKPDes' }
+                { id: 11, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Pembangunan Rabat Beton Jalan Lingkungan Dusun I RT 02/01', lokasi: 'Dusun I / P. 350m x L. 3m', pka: 'Kasi Kesejahteraan', pagu: 465000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
+                { id: 12, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Pembangunan Saluran Drainase Lingkungan Dusun II', lokasi: 'Dusun II / P. 220m', pka: 'Kasi Kesejahteraan', pagu: 195000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
+                { id: 13, bidang: '4. Pemberdayaan Masyarakat Desa', kegiatan: 'Program Ketahanan Pangan & Pengadaan Bibit Pertanian', lokasi: 'Kelompok Tani Desa', pka: 'Kasi Kesejahteraan', pagu: 245000000, kategori: 'Prioritas RKPDes (APBDes)', status: 'Masuk APBDes' },
+                { id: 14, bidang: '2. Pelaksanaan Pembangunan Desa', kegiatan: 'Pembangunan Jembatan Penghubung Antar Desa', lokasi: 'Batas Desa / 1 Unit', pka: 'Kasi Kesejahteraan', pagu: 850000000, kategori: 'DU-RKPDes (Usulan Kabupaten)', status: 'Usulan DU-RKPDes' }
             ],
             pendapatan: [
-                { id: 101, kode: '4.1.1.01', kelompok: '4.1. Pendapatan Asli Desa', uraian: 'Hasil Usaha BUMDes Ridogalih Mandiri', sumber: 'PAD', murni: 35000000, pak: 42000000 },
-                { id: 102, kode: '4.1.2.01', kelompok: '4.1. Pendapatan Asli Desa', uraian: 'Hasil Pengelolaan Tanah Kas Desa (TKD)', sumber: 'PAD', murni: 40000000, pak: 40000000 },
-                { id: 103, kode: '4.2.1.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Dana Desa (DDS) Reguler & Earmarked Kinerja', sumber: 'DDS', murni: 1185450000, pak: 1260450000 },
-                { id: 104, kode: '4.2.2.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Bagi Hasil Pajak dan Retribusi Daerah (PBH)', sumber: 'PBH', murni: 142500000, pak: 158500000 },
-                { id: 105, kode: '4.2.3.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Alokasi Dana Desa (ADD)', sumber: 'ADD', murni: 685000000, pak: 685000000 },
-                { id: 106, kode: '4.2.4.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Bantuan Keuangan Provinsi Jawa Barat (Banprov)', sumber: 'PBP', murni: 130000000, pak: 150000000 },
-                { id: 107, kode: '4.3.6.01', kelompok: '4.3. Pendapatan Lain-lain', uraian: 'Bunga Bank Rekening Kas Desa', sumber: 'DLL', murni: 4500000, pak: 6500000 }
+                { id: 101, kode: '4.1.1.01', kelompok: '4.1. Pendapatan Asli Desa', uraian: 'Bagi Hasil Usaha BUMDes Ridogalih Mandiri', sumber: 'PAD', murni: 35000000, pak: 42000000 },
+                { id: 102, kode: '4.1.2.01', kelompok: '4.1. Pendapatan Asli Desa', uraian: 'Hasil Pengelolaan Tanah Kas Desa (TKD)', sumber: 'PAD', murni: 45000000, pak: 45000000 },
+                { id: 103, kode: '4.2.1.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Dana Desa (DD) Bersumber dari APBN', sumber: 'DDS', murni: 1120000000, pak: 1150000000 },
+                { id: 104, kode: '4.2.2.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Bagian dari Hasil Pajak dan Retribusi Daerah (BHPRD)', sumber: 'PBH', murni: 165000000, pak: 185450000 },
+                { id: 105, kode: '4.2.3.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Alokasi Dana Desa (ADD) Kabupaten Bekasi', sumber: 'ADD', murni: 685000000, pak: 705000000 },
+                { id: 106, kode: '4.2.4.01', kelompok: '4.2. Pendapatan Transfer', uraian: 'Bantuan Keuangan Provinsi Jawa Barat (Banprov)', sumber: 'PBP', murni: 150000000, pak: 200000000 },
+                { id: 107, kode: '4.3.6.01', kelompok: '4.3. Pendapatan Lain-lain', uraian: 'Bunga Bank Rekening Kas Desa (RKD)', sumber: 'DLL', murni: 12000000, pak: 15000000 }
             ],
             kegiatan: [
                 {
-                    id: 201, kode: '1.1.01', bidang: '1. Penyelenggaraan Pemerintahan Desa',
-                    nama: 'Penyediaan Penghasilan Tetap, Tunjangan & Jaminan Sosial Kades & Perangkat',
-                    lokasi: 'Kantor Desa / 12 Bulan', pka: 'Kasi Pemerintahan',
+                    id: 201,
+                    kode: '1.1.01',
+                    bidang: '1. Penyelenggaraan Pemerintahan Desa',
+                    nama: 'Penyediaan Penghasilan Tetap, Tunjangan & Operasional Pemdes',
+                    lokasi: 'Kantor Desa / 12 Bulan',
+                    pka: 'Kasi Pemerintahan',
                     items: [
-                        { id: 2011, kodeObjek: '5.1.1', jenis: 'Belanja Pegawai', uraian: 'Penghasilan Tetap & Tunjangan Kepala Desa', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 6500000, volPak: 12, hargaPak: 6500000 },
-                        { id: 2012, kodeObjek: '5.1.2', jenis: 'Belanja Pegawai', uraian: 'Penghasilan Tetap & Tunjangan Sekretaris & Perangkat Desa (10 Orang)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 28500000, volPak: 12, hargaPak: 28500000 },
-                        { id: 2013, kodeObjek: '5.1.3', jenis: 'Belanja Pegawai', uraian: 'Iuran Jaminan Kesehatan & Ketenagakerjaan (BPJS)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 3500000, volPak: 12, hargaPak: 3500000 }
+                        { id: 2011, kodeObjek: '5.1.1', jenis: 'Belanja Pegawai', uraian: 'Siltap & Tunjangan Kepala Desa (12 Bulan)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 6500000, volPak: 12, hargaPak: 6500000 },
+                        { id: 2012, kodeObjek: '5.1.2', jenis: 'Belanja Pegawai', uraian: 'Siltap & Tunjangan Perangkat Desa (11 Orang)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 32000000, volPak: 12, hargaPak: 32000000 },
+                        { id: 2013, kodeObjek: '5.1.4', jenis: 'Belanja Pegawai', uraian: 'Tunjangan Kedudukan & Operasional BPD', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 5500000, volPak: 12, hargaPak: 6000000 },
+                        { id: 2014, kodeObjek: '5.2.5', jenis: 'Belanja Barang dan Jasa', uraian: 'Operasional Perkantoran (ATK, Listrik, Internet)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 8500000, volPak: 12, hargaPak: 9666667 }
                     ]
                 },
                 {
-                    id: 202, kode: '1.1.02', bidang: '1. Penyelenggaraan Pemerintahan Desa',
-                    nama: 'Operasional Pemdes, Tunjangan BPD & Smart Village Pelayanan Publik',
-                    lokasi: 'Kantor Desa / 12 Bulan', pka: 'Kasi Pemerintahan',
+                    id: 202,
+                    kode: '1.2.03',
+                    bidang: '1. Penyelenggaraan Pemerintahan Desa',
+                    nama: 'Pengembangan Sistem Informasi & Layanan Publik Digital Desa',
+                    lokasi: 'Kantor Desa / 1 Paket',
+                    pka: 'Kaur Perencanaan',
                     items: [
-                        { id: 2021, kodeObjek: '5.2.1', jenis: 'Belanja Barang dan Jasa', uraian: 'Belanja ATK, Benda Pos, Cetak & Penggandaan', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 4500000, volPak: 12, hargaPak: 4500000 },
-                        { id: 2022, kodeObjek: '5.2.5', jenis: 'Belanja Barang dan Jasa', uraian: 'Langganan Listrik, Internet Fiber & Air Kantor Desa', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 5000000, volPak: 12, hargaPak: 5000000 },
-                        { id: 2023, kodeObjek: '5.1.4', jenis: 'Belanja Pegawai', uraian: 'Tunjangan Kedudukan Anggota BPD (7 Orang)', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 5250000, volPak: 12, hargaPak: 5250000 },
-                        { id: 2024, kodeObjek: '5.3.2', jenis: 'Belanja Modal', uraian: 'Pengadaan Server & Anjungan Layanan Mandiri Digital Desa', sumber: 'PBH', satuan: 'Paket', volMurni: 1, hargaMurni: 45000000, volPak: 1, hargaPak: 61000000 },
-                        { id: 2025, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Pendataan Profil Desa, SDGs & Insentif Kolektor PBB-P2', sumber: 'PBH', satuan: 'Tahun', volMurni: 1, hargaMurni: 52000000, volPak: 1, hargaPak: 52000000 }
+                        { id: 2021, kodeObjek: '5.3.2', jenis: 'Belanja Modal', uraian: 'Pengadaan Server, Komputer & Anjungan Mandiri Desa', sumber: 'PBH', satuan: 'Paket', volMurni: 1, hargaMurni: 65000000, volPak: 1, hargaPak: 75450000 },
+                        { id: 2022, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Pemeliharaan & Langganan Sistem Digital Desa', sumber: 'PAD', satuan: 'Tahun', volMurni: 1, hargaMurni: 25000000, volPak: 1, hargaPak: 32000000 }
                     ]
                 },
                 {
-                    id: 203, kode: '2.2.01', bidang: '2. Pelaksanaan Pembangunan Desa',
-                    nama: 'Penyelenggaraan Posyandu, PMT Balita/Ibu Hamil & Pencegahan Stunting',
-                    lokasi: '6 Posyandu / 12 Bulan', pka: 'Kasi Kesejahteraan',
+                    id: 203,
+                    kode: '2.1.04',
+                    bidang: '2. Pelaksanaan Pembangunan Desa',
+                    nama: 'Penyelenggaraan Posyandu, PMT & Pencegahan Stunting Desa',
+                    lokasi: '6 Posyandu RW 01–06',
+                    pka: 'Kasi Kesejahteraan',
                     items: [
-                        { id: 2031, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Insentif Kader Posyandu & Kader Pembangunan Manusia (KPM)', sumber: 'DDS', satuan: 'Bulan', volMurni: 12, hargaMurni: 5500000, volPak: 12, hargaPak: 5500000 },
-                        { id: 2032, kodeObjek: '5.2.7', jenis: 'Belanja Barang dan Jasa', uraian: 'Pemberian Makanan Tambahan (PMT) Pemulihan Gizi Balita', sumber: 'DDS', satuan: 'Bulan', volMurni: 12, hargaMurni: 6000000, volPak: 12, hargaPak: 6000000 }
+                        { id: 2031, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Insentif Kader Posyandu & KPM Stunting (30 Kader)', sumber: 'DDS', satuan: 'Bulan', volMurni: 12, hargaMurni: 6000000, volPak: 12, hargaPak: 6000000 },
+                        { id: 2032, kodeObjek: '5.2.7', jenis: 'Belanja Barang dan Jasa', uraian: 'Pemberian Makanan Tambahan (PMT) Balita & Ibu Hamil', sumber: 'DDS', satuan: 'Paket', volMurni: 12, hargaMurni: 7500000, volPak: 12, hargaPak: 8500000 }
                     ]
                 },
                 {
-                    id: 204, kode: '2.3.10', bidang: '2. Pelaksanaan Pembangunan Desa',
-                    nama: 'Peningkatan Jalan Lingkungan Rabat Beton, Drainase & Sarana Air Bersih',
-                    lokasi: 'Dusun I, II & III', pka: 'Kasi Kesejahteraan',
+                    id: 204,
+                    kode: '2.3.10',
+                    bidang: '2. Pelaksanaan Pembangunan Desa',
+                    nama: 'Pembangunan Rabat Beton Jalan Lingkungan & Drainase Dusun I–II',
+                    lokasi: 'Dusun I & II / 570 Meter',
+                    pka: 'Kasi Kesejahteraan',
                     items: [
-                        { id: 2041, kodeObjek: '5.3.4', jenis: 'Belanja Modal', uraian: 'Pekerjaan Rabat Beton Jalan Lingkungan Dusun I & II (450m -> 520m di PAK)', sumber: 'DDS', satuan: 'Meter', volMurni: 450, hargaMurni: 850000, volPak: 520, hargaPak: 850000 },
-                        { id: 2042, kodeObjek: '5.3.4', jenis: 'Belanja Modal', uraian: 'Pembangunan Saluran Drainase & Gorong-Gorong Poros Desa', sumber: 'PBP', satuan: 'Paket', volMurni: 1, hargaMurni: 130000000, volPak: 1, hargaPak: 150000000 },
-                        { id: 2043, kodeObjek: '5.3.4', jenis: 'Belanja Modal', uraian: 'Pembangunan Sarana Air Bersih / Sumur Bor Dusun III', sumber: 'DDS', satuan: 'Unit', volMurni: 2, hargaMurni: 62500000, volPak: 2, hargaPak: 62500000 }
+                        { id: 2041, kodeObjek: '5.3.4', jenis: 'Belanja Modal', uraian: 'Pekerjaan Rabat Beton Jalan Lingkungan Dusun I (P. 350m)', sumber: 'DDS', satuan: 'Meter', volMurni: 350, hargaMurni: 1300000, volPak: 350, hargaPak: 1320000 },
+                        { id: 2042, kodeObjek: '5.3.4', jenis: 'Belanja Modal', uraian: 'Pembangunan Saluran Drainase Lingkungan Dusun II (Banprov)', sumber: 'PBP', satuan: 'Meter', volMurni: 200, hargaMurni: 750000, volPak: 220, hargaPak: 909091 }
                     ]
                 },
                 {
-                    id: 205, kode: '3.1.01', bidang: '3. Pembinaan Kemasyarakatan Desa',
-                    nama: 'Pembinaan Keagamaan, Linmas, Karang Taruna & Sarana Olahraga Desa',
-                    lokasi: 'Seluruh Wilayah Desa', pka: 'Kasi Pelayanan',
+                    id: 205,
+                    kode: '3.2.02',
+                    bidang: '3. Pembinaan Kemasyarakatan Desa',
+                    nama: 'Pembinaan Keamanan, Linmas, Karang Taruna & LKD',
+                    lokasi: 'Desa Ridogalih / 1 Tahun',
+                    pka: 'Kasi Pelayanan',
                     items: [
-                        { id: 2051, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Insentif Guru Ngaji, Marbot Masjid & PHBI Desa', sumber: 'PAD', satuan: 'Tahun', volMurni: 1, hargaMurni: 75000000, volPak: 1, hargaPak: 82000000 },
-                        { id: 2052, kodeObjek: '5.2.1', jenis: 'Belanja Barang dan Jasa', uraian: 'Operasional & Seragam Satlinmas serta Pembinaan Karang Taruna', sumber: 'PBH', satuan: 'Tahun', volMurni: 1, hargaMurni: 45500000, volPak: 1, hargaPak: 45500000 },
-                        { id: 2053, kodeObjek: '5.3.3', jenis: 'Belanja Modal', uraian: 'Rehabilitasi Pos Kamling & Sarana Olahraga Masyarakat', sumber: 'ADD', satuan: 'Paket', volMurni: 1, hargaMurni: 46000000, volPak: 1, hargaPak: 46000000 }
+                        { id: 2051, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Operasional & Honorarium Satlinmas Desa', sumber: 'ADD', satuan: 'Bulan', volMurni: 12, hargaMurni: 4500000, volPak: 12, hargaPak: 4500000 },
+                        { id: 2052, kodeObjek: '5.2.1', jenis: 'Belanja Barang dan Jasa', uraian: 'Pembinaan Kepemudaan, Olahraga & Keagamaan', sumber: 'PBH', satuan: 'Paket', volMurni: 1, hargaMurni: 100000000, volPak: 1, hargaPak: 110000000 },
+                        { id: 2053, kodeObjek: '5.2.1', jenis: 'Belanja Barang dan Jasa', uraian: 'Kegiatan Gotong Royong & Peringatan Hari Besar', sumber: 'PAD', satuan: 'Paket', volMurni: 1, hargaMurni: 55000000, volPak: 1, hargaPak: 55000000 }
                     ]
                 },
                 {
-                    id: 206, kode: '4.2.01', bidang: '4. Pemberdayaan Masyarakat Desa',
-                    nama: 'Program Ketahanan Pangan Nabati/Hewani & Pelatihan Digital UMKM',
-                    lokasi: 'Kelompok Tani & UMKM', pka: 'Kasi Kesejahteraan',
+                    id: 206,
+                    kode: '4.2.01',
+                    bidang: '4. Pemberdayaan Masyarakat Desa',
+                    nama: 'Program Ketahanan Pangan Nabati, Hewani & Pelatihan UMKM',
+                    lokasi: 'Kelompok Tani & UMKM Desa',
+                    pka: 'Kasi Kesejahteraan',
                     items: [
-                        { id: 2061, kodeObjek: '5.2.7', jenis: 'Belanja Barang dan Jasa', uraian: 'Pengadaan Bibit Unggul, Pupuk & Lumbung Pangan Desa', sumber: 'DDS', satuan: 'Paket', volMurni: 1, hargaMurni: 240000000, volPak: 1, hargaPak: 255500000 },
-                        { id: 2062, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Pelatihan Digital Marketing UMKM & Tata Kelola Keuangan BUMDes', sumber: 'DDS', satuan: 'Kegiatan', volMurni: 2, hargaMurni: 35000000, volPak: 2, hargaPak: 35000000 }
+                        { id: 2061, kodeObjek: '5.2.7', jenis: 'Belanja Barang dan Jasa', uraian: 'Pengadaan Sarana Produksi Pertanian & Perikanan Ketahanan Pangan', sumber: 'DDS', satuan: 'Paket', volMurni: 1, hargaMurni: 245000000, volPak: 1, hargaPak: 254000000 },
+                        { id: 2062, kodeObjek: '5.2.2', jenis: 'Belanja Barang dan Jasa', uraian: 'Pelatihan Digital Marketing UMKM & Peningkatan Kapasitas Kader', sumber: 'DLL', satuan: 'Paket', volMurni: 1, hargaMurni: 12000000, volPak: 1, hargaPak: 15000000 }
                     ]
                 },
                 {
-                    id: 207, kode: '5.3.01', bidang: '5. Penanggulangan Bencana & Mendesak',
-                    nama: 'Penyaluran Bantuan Langsung Tunai Dana Desa (BLT-DD) & Siaga Bencana',
-                    lokasi: '50 KPM Ekstrem', pka: 'Kasi Pelayanan',
+                    id: 207,
+                    kode: '5.3.01',
+                    bidang: '5. Penanggulangan Bencana & Mendesak',
+                    nama: 'Penyaluran Bantuan Langsung Tunai (BLT) Dana Desa & Tanggap Darurat',
+                    lokasi: '50 KPM Desa Ridogalih',
+                    pka: 'Kasi Pelayanan',
                     items: [
                         { id: 2071, kodeObjek: '5.4.1', jenis: 'Belanja Tak Terduga', uraian: 'BLT Dana Desa (50 KPM x Rp 300.000 x 12 Bulan)', sumber: 'DDS', satuan: 'Bulan', volMurni: 12, hargaMurni: 15000000, volPak: 12, hargaPak: 15000000 },
-                        { id: 2072, kodeObjek: '5.4.1', jenis: 'Belanja Tak Terduga', uraian: 'Dana Siaga Bencana & Keadaan Darurat Desa', sumber: 'DLL', satuan: 'Tahun', volMurni: 1, hargaMurni: 4500000, volPak: 1, hargaPak: 6500000 }
+                        { id: 2072, kodeObjek: '5.4.1', jenis: 'Belanja Tak Terduga', uraian: 'Cadangan Penanggulangan Bencana Alam & Darurat Desa', sumber: 'DDS', satuan: 'Paket', volMurni: 1, hargaMurni: 78000000, volPak: 1, hargaPak: 80000000 }
                     ]
                 }
             ],
@@ -1439,13 +1730,315 @@
                 { id: 402, tanggal: '2027-02-10', nomor: '0002/SPP/2027', kegiatanId: 202, uraian: 'Pengadaan Server & Anjungan Layanan Mandiri Digital Desa', nilai: 45000000, jenisPajak: 'PPN 11% + PPh 22 (1.5%)', tarifPajak: 0.125, statusPajak: 'Sudah Disetor' },
                 { id: 403, tanggal: '2027-03-18', nomor: '0003/SPP/2027', kegiatanId: 204, uraian: 'Pencairan Termin I Pekerjaan Rabat Beton Jalan Lingkungan Dusun I', nilai: 220000000, jenisPajak: 'PPN 11% + PPh 22 (1.5%)', tarifPajak: 0.125, statusPajak: 'Sudah Disetor' },
                 { id: 404, tanggal: '2027-04-25', nomor: '0004/SPP/2027', kegiatanId: 207, uraian: 'Penyaluran BLT Dana Desa Triwulan I 2027 (50 KPM)', nilai: 45000000, jenisPajak: 'Bebas Pajak (0%)', tarifPajak: 0, statusPajak: 'Sudah Disetor' }
-            ]
+            ],
+            security: {
+                cloudSyncEnabled: false,
+                users: [] // Diinisialisasi dengan SHA-256 + salt saat pertama kali dimuat
+            }
         };
 
         let state = {};
+        let sessionState = { authenticated: false, userId: null, role: 'ADMIN', lastActivity: Date.now() };
         let activeRabKegiatanId = null;
         let activeReportFormat = 'pak';
         let charts = { bidang: null, sumber: null };
+        let idleTimer = null;
+
+        // =====================================================================
+        // WEB CRYPTO API: SHA-256 WITH RANDOM SALT & SEED USERS
+        // =====================================================================
+        function generateRandomSalt(len = 16) {
+            const bytes = new Uint8Array(len);
+            crypto.getRandomValues(bytes);
+            return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function hashPasswordWithSalt(password, salt) {
+            const enc = new TextEncoder();
+            const data = enc.encode(`${salt}:${password}`);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function ensureDefaultUsersSeeded() {
+            if (Array.isArray(state.security?.users) && state.security.users.length > 0) return;
+
+            const seeds = [
+                { nama: 'Operator Utama Desa Ridogalih', identifier: 'admin.desa', nipOrEmail: 'admin@ridogalih.desa.id', role: 'ADMIN', pass: 'AdminDesa2027!' },
+                { nama: 'Asep Saepudin, S.IP (Sekdes)', identifier: 'sekdes.2027', nipOrEmail: '198405102010011002', role: 'SEKDES', pass: 'Sekdes2027!' },
+                { nama: 'Siti Nurjanah, S.E (Kaur Keuangan)', identifier: 'bendahara.desa', nipOrEmail: 'bendahara@ridogalih.desa.id', role: 'BENDAHARA', pass: 'Bendahara2027!' },
+                { nama: 'H. Endang Suherman (Ketua BPD)', identifier: 'bpd.viewer', nipOrEmail: 'bpd@ridogalih.desa.id', role: 'BPD', pass: 'ViewerBPD2027!' }
+            ];
+
+            const seededUsers = [];
+            for (const s of seeds) {
+                const salt = generateRandomSalt();
+                const hash = await hashPasswordWithSalt(s.pass, salt);
+                seededUsers.push({
+                    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                    nama: s.nama,
+                    identifier: s.identifier,
+                    nipOrEmail: s.nipOrEmail,
+                    role: s.role,
+                    salt,
+                    passwordHash: hash,
+                    helperPass: s.pass
+                });
+            }
+
+            state.security = {
+                cloudSyncEnabled: Boolean(state.security?.cloudSyncEnabled),
+                users: seededUsers
+            };
+            saveState(false);
+        }
+
+        function renderDemoCredentials() {
+            const wrap = document.getElementById('demo-credentials-list');
+            if (!wrap || !state.security?.users) return;
+            wrap.innerHTML = state.security.users.map(u => `
+                <button type="button" onclick="fillDemoCredential('${u.identifier}', '${u.helperPass || ''}', '${u.role}')" class="text-left p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 transition">
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="font-bold text-white truncate">${u.identifier}</span>
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-teal-400/20 text-teal-200 font-bold">${u.role}</span>
+                    </div>
+                    <p class="text-[10px] text-teal-100/80 font-mono mt-0.5 truncate">Pass: ${u.helperPass || '(custom)'}</p>
+                </button>
+            `).join('');
+        }
+
+        function fillDemoCredential(identifier, pass, role) {
+            document.getElementById('login-identifier').value = identifier;
+            document.getElementById('login-password').value = pass;
+            document.getElementById('login-role').value = role;
+            document.getElementById('login-error-box').classList.add('hidden');
+        }
+
+        function toggleLoginPasswordVisibility() {
+            const inp = document.getElementById('login-password');
+            const ico = document.getElementById('login-eye-icon');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                ico.setAttribute('data-lucide', 'eye-off');
+            } else {
+                inp.type = 'password';
+                ico.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        async function handleLoginSubmit(e) {
+            e.preventDefault();
+            const idInput = document.getElementById('login-identifier').value.trim().toLowerCase();
+            const passInput = document.getElementById('login-password').value;
+            const selectedRole = document.getElementById('login-role').value;
+            const errBox = document.getElementById('login-error-box');
+            const errText = document.getElementById('login-error-text');
+
+            const user = (state.security.users || []).find(u =>
+                u.identifier.toLowerCase() === idInput || u.nipOrEmail.toLowerCase() === idInput
+            );
+
+            if (!user) {
+                errText.textContent = 'Username / NIP / Email tidak ditemukan dalam daftar pengguna.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            const computedHash = await hashPasswordWithSalt(passInput, user.salt);
+            if (computedHash !== user.passwordHash) {
+                errText.textContent = 'Kata sandi salah. Periksa kembali password Anda.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            if (user.role !== selectedRole && user.role !== 'ADMIN') {
+                errText.textContent = `Akun ini terdaftar sebagai peran ${user.role}, bukan ${selectedRole}.`;
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            errBox.classList.add('hidden');
+            sessionState = {
+                authenticated: true,
+                userId: user.id,
+                role: selectedRole,
+                lastActivity: Date.now()
+            };
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionState));
+            unlockWorkspaceUI();
+            toast(`Selamat datang, ${user.nama} (${selectedRole})`);
+        }
+
+        function unlockWorkspaceUI() {
+            document.getElementById('login-overlay').classList.add('hidden');
+            applyRbacPermissions();
+            resetIdleTimer();
+            refreshAll();
+        }
+
+        function lockSession(reason = 'Sesi berakhir') {
+            sessionState.authenticated = false;
+            sessionStorage.removeItem(SESSION_KEY);
+            clearTimeout(idleTimer);
+            const p = state.parameter;
+            document.getElementById('login-desa-info').textContent =
+                `${p.namaDesa} • Kec. ${p.kecamatan}, ${p.kabupaten} • Kode: ${p.kodeDesa} • TA ${p.tahun}`;
+            renderDemoCredentials();
+            document.getElementById('login-overlay').classList.remove('hidden');
+            if (reason) {
+                const errBox = document.getElementById('login-error-box');
+                document.getElementById('login-error-text').textContent = `${reason}. Silakan login kembali.`;
+                errBox.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            if (!sessionState.authenticated) return;
+            idleTimer = setTimeout(() => {
+                lockSession('Layar dikunci otomatis karena tidak ada aktivitas selama 20 menit');
+            }, IDLE_TIMEOUT_MS);
+        }
+
+        function hasWriteScope(scope) {
+            if (!sessionState.authenticated) return false;
+            const perm = ROLE_PERMISSIONS[sessionState.role] || ROLE_PERMISSIONS.BPD;
+            return perm.writeScopes.includes(scope);
+        }
+
+        function applyRbacPermissions() {
+            const role = sessionState.role || 'BPD';
+            const perm = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.BPD;
+            const user = (state.security?.users || []).find(u => u.id === sessionState.userId);
+
+            document.getElementById('top-user-label').textContent = user ? user.nama : role;
+            document.getElementById('top-role-badge').textContent = role;
+
+            document.querySelectorAll('[data-rbac-write]').forEach(el => {
+                const scope = el.getAttribute('data-rbac-write');
+                const allowed = perm.writeScopes.includes(scope);
+                el.classList.toggle('rbac-disabled', !allowed);
+                if (el.tagName === 'BUTTON' || el.tagName === 'INPUT') {
+                    el.disabled = !allowed;
+                }
+            });
+        }
+
+        // Admin Users Modal
+        function openAdminUsersModal() {
+            if (sessionState.role !== 'ADMIN') {
+                toast('Hanya role ADMIN yang dapat mengelola akun pengguna & RBAC.', 'danger');
+                return;
+            }
+            renderUsersTable();
+            document.getElementById('cloud-sync-toggle').checked = Boolean(state.security?.cloudSyncEnabled);
+            const m = document.getElementById('admin-users-modal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeAdminUsersModal() {
+            const m = document.getElementById('admin-users-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        async function handleSaveUserAccount(e) {
+            e.preventDefault();
+            if (sessionState.role !== 'ADMIN') return;
+            const nama = document.getElementById('new-user-name').value.trim();
+            const identifier = document.getElementById('new-user-id').value.trim();
+            const role = document.getElementById('new-user-role').value;
+            const pass = document.getElementById('new-user-pass').value;
+
+            const salt = generateRandomSalt();
+            const passwordHash = await hashPasswordWithSalt(pass, salt);
+
+            const existingIdx = state.security.users.findIndex(u => u.identifier.toLowerCase() === identifier.toLowerCase());
+            if (existingIdx !== -1) {
+                state.security.users[existingIdx] = {
+                    ...state.security.users[existingIdx],
+                    nama,
+                    role,
+                    salt,
+                    passwordHash,
+                    helperPass: pass
+                };
+                toast(`Akun ${identifier} diperbarui & password di-hash ulang (SHA-256).`);
+            } else {
+                state.security.users.push({
+                    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                    nama,
+                    identifier,
+                    nipOrEmail: `${identifier}@desa.local`,
+                    role,
+                    salt,
+                    passwordHash,
+                    helperPass: pass
+                });
+                toast(`Akun baru ${identifier} berhasil ditambahkan!`);
+            }
+
+            e.target.reset();
+            saveState(false);
+            renderUsersTable();
+            renderDemoCredentials();
+        }
+
+        async function resetUserPasswordPrompt(userId) {
+            const u = state.security.users.find(x => x.id === userId);
+            if (!u) return;
+            const newPass = `Reset${u.role}2027!`;
+            const salt = generateRandomSalt();
+            u.salt = salt;
+            u.passwordHash = await hashPasswordWithSalt(newPass, salt);
+            u.helperPass = newPass;
+            saveState(false);
+            renderUsersTable();
+            renderDemoCredentials();
+            toast(`Password ${u.identifier} di-reset menjadi: ${newPass}`);
+        }
+
+        function deleteUserAccount(userId) {
+            if (state.security.users.length <= 1) {
+                toast('Minimal harus ada 1 akun pengguna aktif.', 'danger');
+                return;
+            }
+            state.security.users = state.security.users.filter(u => u.id !== userId);
+            saveState(false);
+            renderUsersTable();
+            renderDemoCredentials();
+            toast('Akun pengguna dihapus.', 'danger');
+        }
+
+        function toggleCloudSyncMode(enabled) {
+            state.security.cloudSyncEnabled = Boolean(enabled);
+            saveState(false);
+            toast(enabled ? 'Mode Cloud Sync diaktifkan (konfigurasi lokal siap).' : 'Mode Cloud Sync dinonaktifkan (lokal saja).');
+        }
+
+        function renderUsersTable() {
+            const tbody = document.getElementById('tbody-users-list');
+            tbody.innerHTML = (state.security.users || []).map(u => `
+                <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-2 font-bold text-slate-900">${u.nama}</td>
+                    <td class="px-3 py-2 font-mono text-slate-700">${u.identifier}</td>
+                    <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded bg-gov-900 text-white font-mono font-bold text-[10px]">${u.role}</span></td>
+                    <td class="px-3 py-2 font-mono text-[10px] text-slate-500">${String(u.salt || '').substring(0, 12)}...</td>
+                    <td class="px-3 py-2 text-center">
+                        <div class="inline-flex items-center gap-1">
+                            <button onclick="resetUserPasswordPrompt('${u.id}')" class="px-2 py-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-bold text-[10px]">Reset Pass</button>
+                            <button onclick="deleteUserAccount('${u.id}')" class="p-1 text-rose-600 hover:bg-rose-50 rounded"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
 
         // =====================================================================
         // HELPER & PERSISTENCE
@@ -1455,6 +2048,7 @@
             if (raw) {
                 try {
                     state = JSON.parse(raw);
+                    if (!state.security) state.security = { cloudSyncEnabled: false, users: [] };
                 } catch (e) {
                     state = JSON.parse(JSON.stringify(INITIAL_STATE));
                 }
@@ -3059,13 +3653,34 @@
             renderPembiayaanTable();
             renderBkuTable();
             renderActiveReport();
+            applyRbacPermissions();
             lucide.createIcons();
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             loadState();
+            await ensureDefaultUsersSeeded();
             populateParameterForm();
-            refreshAll();
+            renderDemoCredentials();
+
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
+                window.addEventListener(evt, resetIdleTimer, { passive: true });
+            });
+
+            const savedSession = sessionStorage.getItem(SESSION_KEY);
+            if (savedSession) {
+                try {
+                    const parsed = JSON.parse(savedSession);
+                    if (parsed.authenticated && (Date.now() - Number(parsed.lastActivity || 0)) < IDLE_TIMEOUT_MS) {
+                        sessionState = { ...parsed, lastActivity: Date.now() };
+                        sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionState));
+                        unlockWorkspaceUI();
+                        return;
+                    }
+                } catch (e) {}
+            }
+
+            lockSession('');
         });
     </script>
 </body>
