@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (Export Excel .xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
@@ -118,7 +120,7 @@
                 <div>
                     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-mono text-teal-200 font-bold">
                         <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-                        <span>SISKEUDES v2.07 • RBAC & SHA-256</span>
+                        <span>SISKEUDES v2.08 • RBAC & SHA-256</span>
                     </div>
                     <h1 class="text-2xl sm:text-3xl font-extrabold mt-4 leading-tight">Portal Autentikasi & Akses Keuangan Desa</h1>
                     <p id="login-desa-info" class="text-xs sm:text-sm text-teal-100/90 mt-2">
@@ -483,7 +485,7 @@
                 <div>
                     <div class="flex items-center gap-1.5">
                         <span class="font-extrabold text-base tracking-tight text-white">SISKEUDES</span>
-                        <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30">v2.07</span>
+                        <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30">v2.08</span>
                     </div>
                     <p class="text-[11px] text-slate-400">Permendagri 20/2018 & 114/2014</p>
                 </div>
@@ -564,7 +566,7 @@
             <button onclick="switchModule('laporan')" id="nav-laporan" class="nav-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-300 hover:bg-white/5 hover:text-white transition">
                 <span class="font-mono text-[11px] text-slate-500">09</span>
                 <i data-lucide="printer" class="w-4 h-4 shrink-0"></i>
-                <span class="truncate">Pusat Laporan Resmi (8)</span>
+                <span class="truncate">Pusat Laporan Resmi (9)</span>
             </button>
         </nav>
 
@@ -631,6 +633,10 @@
                 <button onclick="exportJSON()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Backup Database JSON">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
                     <span class="hidden md:inline">Backup JSON</span>
+                </button>
+                <button onclick="exportExcelWorkbook()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs" title="Export Semua Modul ke Excel (.xlsx)">
+                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                    <span class="hidden md:inline">Export Excel</span>
                 </button>
                 <button onclick="switchModule('laporan')" class="px-3.5 py-1.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs">
                     <i data-lucide="printer" class="w-3.5 h-3.5"></i>
@@ -735,9 +741,14 @@
 
                 <!-- Rekonsiliasi & Keseimbangan per Sumber Dana -->
                 <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs">
-                    <div class="mb-4">
-                        <h3 class="font-bold text-sm sm:text-base text-gov-900">Kontrol Keseimbangan Anggaran per Kode Sumber Dana</h3>
-                        <p class="text-xs text-slate-500">Memastikan setiap sumber dana (DDS, ADD, PAD, PBH, PBP, DLL) seimbang antara Penerimaan dan Belanja/Pembiayaan</p>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="font-bold text-sm sm:text-base text-gov-900">Pagu Indikatif Pemerintah & Kontrol Keseimbangan per Sumber Dana</h3>
+                            <p class="text-xs text-slate-500">Ubah langsung nominal <b>Pagu Pemerintah (Murni / PAK)</b> tiap sumber dana sesuai pagu resmi, lalu klik <b>Sinkron ke Pendapatan</b> jika ingin menyelaraskan Akun 4.</p>
+                        </div>
+                        <button onclick="syncAllPaguSumberToPendapatan()" data-rbac-write="PENDAPATAN" class="px-3 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sinkron Pagu → Pendapatan
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs text-left">
@@ -745,9 +756,11 @@
                                 <tr>
                                     <th class="px-3 py-2.5 rounded-l-lg">Kode</th>
                                     <th class="px-3 py-2.5">Uraian Sumber Dana</th>
-                                    <th class="px-3 py-2.5 text-right">Pendapatan + Pembiayaan (Rp)</th>
-                                    <th class="px-3 py-2.5 text-right">Belanja + Peng. Pembiayaan (Rp)</th>
-                                    <th class="px-3 py-2.5 text-right">Selisih / Sisa (Rp)</th>
+                                    <th class="px-3 py-2.5 text-right">Pagu Pemerintah Murni (Edit)</th>
+                                    <th class="px-3 py-2.5 text-right">Pagu Pemerintah PAK (Edit)</th>
+                                    <th class="px-3 py-2.5 text-right">Pendapatan + Pembiayaan (Akun 4+6.1)</th>
+                                    <th class="px-3 py-2.5 text-right">Belanja + Peng. Pembiayaan (Akun 5+6.2)</th>
+                                    <th class="px-3 py-2.5 text-right">Sisa Pagu Sumber Dana</th>
                                     <th class="px-3 py-2.5 text-center rounded-r-lg">Status</th>
                                 </tr>
                             </thead>
@@ -772,7 +785,7 @@
                         <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700 border-b border-slate-100 pb-2">A. Identitas Wilayah, NPWP & Rekening Kas Desa (RKD)</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">Kode Kemendagri Desa</label>
+                                <label class="block font-bold text-slate-700 mb-1">Kode Wilayah Desa (Kemendagri)</label>
                                 <input type="text" id="par-kodeDesa" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
                             </div>
                             <div>
@@ -792,24 +805,68 @@
                                 <input type="text" id="par-provinsi" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
                             </div>
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">Tahun Anggaran Berjalan</label>
+                                <label class="block font-bold text-slate-700 mb-1">Tahun Anggaran</label>
                                 <input type="number" id="par-tahun" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Periode RPJMDes (6 Tahun)</label>
-                                <input type="text" id="par-periodeRpjm" required placeholder="2025 - 2030" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
+                                <input type="text" id="par-periodeRpjm" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
                             </div>
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">NPWP Pemerintah Desa</label>
+                                <label class="block font-bold text-slate-700 mb-1">NPWP Bendahara Desa</label>
                                 <input type="text" id="par-npwp" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block font-bold text-slate-700 mb-1">Nomor Rekening Kas Desa (RKD) & Bank</label>
+                                <label class="block font-bold text-slate-700 mb-1">Rekening Kas Desa (RKD)</label>
                                 <input type="text" id="par-rekening" required class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block font-bold text-slate-700 mb-1">Alamat Kantor Desa</label>
                                 <input type="text" id="par-alamat" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- B. Struktur PPKD & PKA (DIPATENKAN UNTUK PEMERINTAH DESA RIDOGALIH) -->
+                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700">B. Struktur PPKD & Pelaksana Kegiatan Anggaran (PKA) — Pemerintah Desa Ridogalih</h3>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
+                                <i data-lucide="lock" class="w-3 h-3"></i> Struktur Definitif Desa Ridogalih (Terkunci)
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kepala Desa (PKPKD)</label>
+                                <input type="text" id="par-kades" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Sekretaris Desa (Koordinator PPKD)</label>
+                                <input type="text" id="par-sekdes" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kaur Keuangan (Bendahara Desa)</label>
+                                <input type="text" id="par-kaurKeu" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kaur Perencanaan (PKA)</label>
+                                <input type="text" id="par-kaurPer" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kasi Pemerintahan (PKA Bid. 1)</label>
+                                <input type="text" id="par-kasiPem" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kasi Kesejahteraan (PKA Bid. 2 & 4)</label>
+                                <input type="text" id="par-kasiKes" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Kasi Pelayanan (PKA Bid. 3 & 5)</label>
+                                <input type="text" id="par-kasiPel" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Ketua BPD</label>
+                                <input type="text" id="par-ketuaBpd" readonly class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 font-bold text-gov-900 cursor-not-allowed">
                             </div>
                         </div>
                     </div>
@@ -898,8 +955,8 @@
             <section id="mod-rpjmdes" class="module-view hidden space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <h2 class="text-xl font-extrabold text-gov-900">03. Perencanaan 6 Tahun (RPJMDes)</h2>
-                        <p class="text-xs text-slate-500">Rencana Pembangunan Jangka Menengah Desa (6 Tahun) sesuai Permendagri 114/2014. Klik <b>"Turunkan ke RKPDes"</b> untuk memasukkan program ke rencana kerja tahun berjalan.</p>
+                        <h2 class="text-xl font-extrabold text-gov-900">03. Perencanaan Jangka Menengah Desa (RPJMDes 6 Tahun)</h2>
+                        <p class="text-xs text-slate-500">Matriks program pembangunan desa 6 tahunan. Klik <b>"→ RKPDes"</b> untuk menurunkan program prioritas ke perencanaan tahun berjalan.</p>
                     </div>
                 </div>
 
@@ -1000,391 +1057,7 @@
             <!-- ===================================================================== -->
             <!-- MODUL 04: PERENCANAAN TAHUNAN (RKPDES & DU-RKPDES)                    -->
             <!-- ===================================================================== -->
-            <section id="mod-rkpdes" class="module-view hidden space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h2 class="text-xl font-extrabold text-gov-900">04. Perencanaan Tahunan (RKPDes & DU-RKPDes)</h2>
-                        <p class="text-xs text-slate-500">Daftar Rencana Kerja Pemerintah Desa hasil Musrenbangdes. Kegiatan berstatus <b>Layak APBDes</b> dapat langsung di-posting menjadi Kegiatan Anggaran di APBDes.</p>
-                    </div>
-                </div>
-
-                <!-- Form Tambah Usulan RKPDes -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700 mb-3">Tambah Usulan Kegiatan RKPDes / DU-RKPDes</h3>
-                    <form onsubmit="saveRkpItem(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end text-xs">
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Bidang Pembangunan</label>
-                            <select id="rkp-bidang" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="1. Penyelenggaraan Pemerintahan Desa">1. Penyelenggaraan Pemerintahan Desa</option>
-                                <option value="2. Pelaksanaan Pembangunan Desa" selected>2. Pelaksanaan Pembangunan Desa</option>
-                                <option value="3. Pembinaan Kemasyarakatan Desa">3. Pembinaan Kemasyarakatan Desa</option>
-                                <option value="4. Pemberdayaan Masyarakat Desa">4. Pemberdayaan Masyarakat Desa</option>
-                                <option value="5. Penanggulangan Bencana & Mendesak">5. Penanggulangan Bencana & Mendesak</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Nama Kegiatan RKPDes</label>
-                            <input type="text" id="rkp-kegiatan" required placeholder="Contoh: Pembangunan Posyandu Melati RW 04" class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Lokasi & Volume</label>
-                            <input type="text" id="rkp-lokasi" required placeholder="Dusun II / 1 Unit" class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Pelaksana (PKA)</label>
-                            <select id="rkp-pka" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="Kasi Pemerintahan">Kasi Pemerintahan</option>
-                                <option value="Kasi Kesejahteraan" selected>Kasi Kesejahteraan</option>
-                                <option value="Kasi Pelayanan">Kasi Pelayanan</option>
-                                <option value="Kaur Perencanaan">Kaur Perencanaan</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Pagu Indikatif (Rp)</label>
-                            <input type="number" id="rkp-pagu" required min="0" step="1000" placeholder="0" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Klasifikasi Musrenbangdes</label>
-                            <select id="rkp-kategori" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="Prioritas RKPDes (APBDes)">Prioritas RKPDes (Didanai APBDes)</option>
-                                <option value="DU-RKPDes (Usulan Kabupaten)">DU-RKPDes (Usulan ke APBD Kabupaten/Prov)</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-9 flex justify-end">
-                            <button type="submit" data-rbac-write="PERENCANAAN" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white font-bold flex items-center gap-1.5 transition">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Usulan RKPDes
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Tabel Daftar RKPDes -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs overflow-x-auto">
-                    <table class="w-full text-xs text-left">
-                        <thead class="bg-gov-900 text-white uppercase">
-                            <tr>
-                                <th class="px-3 py-3 rounded-tl-xl">Bidang</th>
-                                <th class="px-3 py-3">Kegiatan RKPDes / DU-RKPDes</th>
-                                <th class="px-3 py-3">Lokasi, Volume & PKA</th>
-                                <th class="px-3 py-3 text-right">Pagu Indikatif</th>
-                                <th class="px-3 py-3 text-center">Status Verifikasi</th>
-                                <th class="px-3 py-3 text-center rounded-tr-xl">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-rkpdes" class="divide-y divide-slate-200"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- ===================================================================== -->
-            <!-- MODUL 05: PENGANGGARAN PENDAPATAN (AKUN 4 — MURNI & PAK)              -->
-            <!-- ===================================================================== -->
-            <section id="mod-pendapatan" class="module-view hidden space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h2 class="text-xl font-extrabold text-gov-900">05. Penganggaran — Pendapatan Desa (Akun 4)</h2>
-                        <p class="text-xs text-slate-500">Menampilkan perbandingan <b>Anggaran Murni (Semula)</b>, <b>Bertambah / (Berkurang)</b>, dan <b>Anggaran Perubahan / PAK (Menjadi)</b>.</p>
-                    </div>
-                    <div class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-right">
-                        <span class="text-[11px] text-slate-500 block">Total Pendapatan (<span id="pend-phase-tag">PAK</span>)</span>
-                        <span id="pend-header-total" class="font-num text-base font-extrabold text-tealgov-700">Rp 0</span>
-                    </div>
-                </div>
-
-                <!-- Form Input / Edit Pendapatan -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-                    <h3 id="pend-form-title" class="text-xs font-bold uppercase tracking-wider text-tealgov-700 mb-3">Tambah / Edit Rekening Pendapatan Desa</h3>
-                    <form id="form-pendapatan" onsubmit="savePendapatan(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end text-xs">
-                        <input type="hidden" id="pend-edit-id">
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Kelompok & Jenis (Permendagri 20/2018)</label>
-                            <select id="pend-jenis" onchange="autoFillKodePendapatan()" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <optgroup label="4.1. Pendapatan Asli Desa">
-                                    <option value="4.1.1|4.1. Pendapatan Asli Desa">4.1.1 - Hasil Usaha Desa (BUMDes)</option>
-                                    <option value="4.1.2|4.1. Pendapatan Asli Desa">4.1.2 - Hasil Aset Desa (TKD)</option>
-                                    <option value="4.1.3|4.1. Pendapatan Asli Desa">4.1.3 - Swadaya & Gotong Royong</option>
-                                    <option value="4.1.4|4.1. Pendapatan Asli Desa">4.1.4 - Lain-lain PAD</option>
-                                </optgroup>
-                                <optgroup label="4.2. Pendapatan Transfer">
-                                    <option value="4.2.1|4.2. Pendapatan Transfer" selected>4.2.1 - Dana Desa (DDS)</option>
-                                    <option value="4.2.2|4.2. Pendapatan Transfer">4.2.2 - Bagi Hasil Pajak & Retribusi (PBH)</option>
-                                    <option value="4.2.3|4.2. Pendapatan Transfer">4.2.3 - Alokasi Dana Desa (ADD)</option>
-                                    <option value="4.2.4|4.2. Pendapatan Transfer">4.2.4 - Bantuan Keuangan Provinsi (PBP)</option>
-                                    <option value="4.2.5|4.2. Pendapatan Transfer">4.2.5 - Bantuan Keuangan Kabupaten (PBK)</option>
-                                </optgroup>
-                                <optgroup label="4.3. Pendapatan Lain-lain">
-                                    <option value="4.3.1|4.3. Pendapatan Lain-lain">4.3.1 - Hasil Kerja Sama Desa</option>
-                                    <option value="4.3.6|4.3. Pendapatan Lain-lain">4.3.6 - Bunga Bank RKD</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Kode Rekening (Auto Uraian)</label>
-                            <input type="text" id="pend-kode" list="datalist-rek-pendapatan" required value="4.2.1.01" onchange="autoFillPendapatanByKode()" oninput="autoFillPendapatanByKode()" placeholder="Pilih / ketik kode..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                            <datalist id="datalist-rek-pendapatan"></datalist>
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Uraian Objek Pendapatan (Terisi Otomatis)</label>
-                            <input type="text" id="pend-uraian" required value="Dana Desa (DD) Bersumber dari APBN" placeholder="Uraian pendapatan otomatis / edit manual..." class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Sumber Dana</label>
-                            <select id="pend-sumber" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono bg-white">
-                                <option value="DDS" selected>DDS</option>
-                                <option value="ADD">ADD</option>
-                                <option value="PAD">PAD</option>
-                                <option value="PBH">PBH</option>
-                                <option value="PBP">PBP</option>
-                                <option value="PBK">PBK</option>
-                                <option value="SWD">SWD</option>
-                                <option value="DLL">DLL</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Anggaran Murni (Rp)</label>
-                            <input type="number" id="pend-murni" required min="0" step="1000" value="0" oninput="syncPendPakDefault()" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-teal-800 mb-1">Anggaran Setelah Perubahan / PAK (Rp)</label>
-                            <input type="number" id="pend-pak" required min="0" step="1000" value="0" class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/50 font-mono font-bold">
-                        </div>
-                        <div class="lg:col-span-9 flex justify-end gap-2">
-                            <button type="button" id="btn-cancel-pend" onclick="resetFormPendapatan()" class="hidden px-3 py-2 rounded-xl bg-slate-100 text-slate-600 font-semibold">Batal</button>
-                            <button type="submit" id="btn-submit-pend" data-rbac-write="PENDAPATAN" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Pendapatan
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Tabel Pendapatan Komparatif -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs overflow-x-auto">
-                    <table class="w-full text-xs text-left">
-                        <thead class="bg-gov-900 text-white uppercase">
-                            <tr>
-                                <th class="px-3 py-3 rounded-tl-xl">Kode Rek</th>
-                                <th class="px-3 py-3">Kelompok & Uraian Pendapatan</th>
-                                <th class="px-3 py-3 text-center">Sumber</th>
-                                <th class="px-3 py-3 text-right">Semula / Murni (Rp)</th>
-                                <th class="px-3 py-3 text-right">Bertambah / (Berkurang)</th>
-                                <th class="px-3 py-3 text-right">Menjadi / PAK (Rp)</th>
-                                <th class="px-3 py-3 text-center rounded-tr-xl">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-pendapatan" class="divide-y divide-slate-200"></tbody>
-                        <tfoot class="bg-slate-100 font-extrabold text-gov-900 border-t-2 border-gov-900">
-                            <tr>
-                                <td colspan="3" class="px-4 py-3 text-right uppercase">Jumlah Total Pendapatan Desa (Akun 4)</td>
-                                <td id="pend-tfoot-murni" class="px-3 py-3 text-right font-num">Rp 0</td>
-                                <td id="pend-tfoot-delta" class="px-3 py-3 text-right font-num">Rp 0</td>
-                                <td id="pend-tfoot-pak" class="px-3 py-3 text-right font-num text-sm text-tealgov-700">Rp 0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </section>
-
-            <!-- ===================================================================== -->
-            <!-- MODUL 06: PENGANGGARAN BELANJA & RAB RINCI (AKUN 5 — MURNI & PAK)     -->
-            <!-- ===================================================================== -->
-            <section id="mod-belanja" class="module-view hidden space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h2 class="text-xl font-extrabold text-gov-900">06. Penganggaran — Belanja & RAB Rinci (Akun 5)</h2>
-                        <p class="text-xs text-slate-500">Klik <b>"Detail RAB"</b> pada setiap kegiatan untuk menyusun rincian objek belanja Murni (Semula) dan Perubahan (PAK).</p>
-                    </div>
-                    <div class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-right">
-                        <span class="text-[11px] text-slate-500 block">Total Belanja (<span id="bel-phase-tag">PAK</span>)</span>
-                        <span id="bel-header-total" class="font-num text-base font-extrabold text-amber-700">Rp 0</span>
-                    </div>
-                </div>
-
-                <!-- Form Tambah Kegiatan Baru -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700 mb-3">Tambah Kegiatan Baru ke APBDes</h3>
-                    <form onsubmit="addKegiatanBaru(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end text-xs">
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Bidang Kewenangan Desa</label>
-                            <select id="keg-bidang" onchange="populateKodeKegiatanDatalist()" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="1. Penyelenggaraan Pemerintahan Desa">1. Penyelenggaraan Pemerintahan Desa</option>
-                                <option value="2. Pelaksanaan Pembangunan Desa" selected>2. Pelaksanaan Pembangunan Desa</option>
-                                <option value="3. Pembinaan Kemasyarakatan Desa">3. Pembinaan Kemasyarakatan Desa</option>
-                                <option value="4. Pemberdayaan Masyarakat Desa">4. Pemberdayaan Masyarakat Desa</option>
-                                <option value="5. Penanggulangan Bencana & Mendesak">5. Penanggulangan Bencana & Mendesak</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Kode Keg (Auto Uraian)</label>
-                            <input type="text" id="keg-kode" list="datalist-rek-kegiatan" required onchange="autoFillKegiatanByKode()" oninput="autoFillKegiatanByKode()" placeholder="Pilih / ketik 2.3.10..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                            <datalist id="datalist-rek-kegiatan"></datalist>
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Nama Kegiatan (Terisi Otomatis)</label>
-                            <input type="text" id="keg-nama" required placeholder="Nama kegiatan otomatis..." class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Lokasi & Waktu</label>
-                            <input type="text" id="keg-lokasi" required placeholder="Dusun I / 3 Bulan" class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Pelaksana (PKA)</label>
-                            <select id="keg-pka" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="Kasi Pemerintahan">Kasi Pemerintahan</option>
-                                <option value="Kasi Kesejahteraan" selected>Kasi Kesejahteraan</option>
-                                <option value="Kasi Pelayanan">Kasi Pelayanan</option>
-                                <option value="Kaur Perencanaan">Kaur Perencanaan</option>
-                            </select>
-                        </div>
-                        <div class="sm:col-span-2 lg:col-span-12 flex justify-end">
-                            <button type="submit" data-rbac-write="BELANJA" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
-                                <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i> Buat Kegiatan & Isi RAB
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Filter & Daftar Kegiatan Komparatif -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-bold text-slate-600">Filter Bidang:</label>
-                            <select id="filter-keg-bidang" onchange="renderKegiatanTable()" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-medium bg-white">
-                                <option value="ALL">Semua Bidang (5 Bidang)</option>
-                                <option value="1. Penyelenggaraan Pemerintahan Desa">1. Penyelenggaraan Pemerintahan Desa</option>
-                                <option value="2. Pelaksanaan Pembangunan Desa">2. Pelaksanaan Pembangunan Desa</option>
-                                <option value="3. Pembinaan Kemasyarakatan Desa">3. Pembinaan Kemasyarakatan Desa</option>
-                                <option value="4. Pemberdayaan Masyarakat Desa">4. Pemberdayaan Masyarakat Desa</option>
-                                <option value="5. Penanggulangan Bencana & Mendesak">5. Penanggulangan Bencana & Mendesak</option>
-                            </select>
-                        </div>
-                        <input type="text" id="search-kegiatan" onkeyup="renderKegiatanTable()" placeholder="Cari kode / nama kegiatan / PKA..." class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs w-full sm:w-64">
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-gov-900 text-white uppercase">
-                                <tr>
-                                    <th class="px-3 py-3 rounded-tl-xl">Kode</th>
-                                    <th class="px-3 py-3">Bidang, Kegiatan & PKA</th>
-                                    <th class="px-3 py-3 text-right">Semula / Murni (Rp)</th>
-                                    <th class="px-3 py-3 text-right">Bertambah / (Berkurang)</th>
-                                    <th class="px-3 py-3 text-right">Menjadi / PAK (Rp)</th>
-                                    <th class="px-3 py-3 text-right">Realisasi BKU</th>
-                                    <th class="px-3 py-3 text-center rounded-tr-xl">Kelola RAB</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody-kegiatan" class="divide-y divide-slate-200"></tbody>
-                            <tfoot class="bg-slate-100 font-extrabold text-gov-900 border-t-2 border-gov-900">
-                                <tr>
-                                    <td colspan="2" class="px-4 py-3 text-right uppercase">Jumlah Total Belanja Desa (Akun 5)</td>
-                                    <td id="bel-tfoot-murni" class="px-3 py-3 text-right font-num">Rp 0</td>
-                                    <td id="bel-tfoot-delta" class="px-3 py-3 text-right font-num">Rp 0</td>
-                                    <td id="bel-tfoot-pak" class="px-3 py-3 text-right font-num text-sm text-tealgov-700">Rp 0</td>
-                                    <td id="bel-tfoot-real" class="px-3 py-3 text-right font-num text-slate-600">Rp 0</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ===================================================================== -->
-            <!-- MODUL 07: PENGANGGARAN PEMBIAYAAN (AKUN 6 — MURNI & PAK)              -->
-            <!-- ===================================================================== -->
-            <section id="mod-pembiayaan" class="module-view hidden space-y-6">
-                <div>
-                    <h2 class="text-xl font-extrabold text-gov-900">07. Penganggaran — Pembiayaan Desa (Akun 6)</h2>
-                    <p class="text-xs text-slate-500">Penerimaan Pembiayaan (6.1 SILPA Tahun Sebelumnya hasil Audit/LPPD) dan Pengeluaran Pembiayaan (6.2 Penyertaan Modal BUMDes) pada APBDes Murni dan Perubahan (PAK).</p>
-                </div>
-
-                <!-- Ringkasan Keseimbangan -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200">
-                        <span class="text-[11px] font-bold text-slate-400 uppercase">Surplus / (Defisit) Aktif</span>
-                        <p id="pemb-surplus-defisit" class="font-num text-base font-extrabold text-slate-900 mt-1">Rp 0</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200">
-                        <span class="text-[11px] font-bold text-slate-400 uppercase">6.1 Penerimaan Pembiayaan</span>
-                        <p id="pemb-total-terima" class="font-num text-base font-extrabold text-tealgov-700 mt-1">Rp 0</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200">
-                        <span class="text-[11px] font-bold text-slate-400 uppercase">6.2 Pengeluaran Pembiayaan</span>
-                        <p id="pemb-total-keluar" class="font-num text-base font-extrabold text-amber-700 mt-1">Rp 0</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200">
-                        <span class="text-[11px] font-bold text-slate-400 uppercase">SILPA Tahun Berjalan</span>
-                        <p id="pemb-silpa-akhir" class="font-num text-base font-extrabold text-emerald-600 mt-1">Rp 0</p>
-                    </div>
-                </div>
-
-                <!-- Form Tambah Pembiayaan -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-tealgov-700 mb-3">Tambah Rekening Pembiayaan (Akun 6)</h3>
-                    <form onsubmit="savePembiayaan(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end text-xs">
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Kelompok Pembiayaan</label>
-                            <select id="pemb-kelompok" onchange="autoFillKodePembiayaan()" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                                <option value="6.1. Penerimaan Pembiayaan">6.1. Penerimaan Pembiayaan (+)</option>
-                                <option value="6.2. Pengeluaran Pembiayaan">6.2. Pengeluaran Pembiayaan (-)</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Kode Rekening (Auto Uraian)</label>
-                            <input type="text" id="pemb-kode" list="datalist-rek-pembiayaan" required value="6.1.1.01" onchange="autoFillPembiayaanByKode()" oninput="autoFillPembiayaanByKode()" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                            <datalist id="datalist-rek-pembiayaan"></datalist>
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-slate-700 mb-1">Uraian Pembiayaan (Terisi Otomatis)</label>
-                            <input type="text" id="pemb-uraian" required value="SILPA Tahun Anggaran Sebelumnya (Hasil Audit / LPPD)" placeholder="Contoh: SILPA Tahun Lalu" class="w-full px-3 py-2 rounded-xl border border-slate-300">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Sumber Dana</label>
-                            <select id="pemb-sumber" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono bg-white">
-                                <option value="DLL">DLL (SILPA / Lainnya)</option>
-                                <option value="DDS">DDS</option>
-                                <option value="ADD">ADD</option>
-                                <option value="PAD">PAD</option>
-                            </select>
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">Murni / Semula (Rp)</label>
-                            <input type="number" id="pemb-murni" required min="0" step="1000" value="0" oninput="document.getElementById('pemb-pak').value = this.value" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono">
-                        </div>
-                        <div class="lg:col-span-3">
-                            <label class="block font-bold text-teal-800 mb-1">Setelah Perubahan / PAK (Rp)</label>
-                            <input type="number" id="pemb-pak" required min="0" step="1000" value="0" class="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/50 font-mono font-bold">
-                        </div>
-                        <div class="lg:col-span-9 flex justify-end">
-                            <button type="submit" data-rbac-write="PEMBIAYAAN" class="px-4 py-2 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold flex items-center gap-1.5 transition">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Simpan Pembiayaan
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Tabel Pembiayaan -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs overflow-x-auto">
-                    <table class="w-full text-xs text-left">
-                        <thead class="bg-gov-900 text-white uppercase">
-                            <tr>
-                                <th class="px-3 py-3 rounded-tl-xl">Kode Rek</th>
-                                <th class="px-3 py-3">Kelompok & Uraian Pembiayaan</th>
-                                <th class="px-3 py-3 text-center">Sumber</th>
-                                <th class="px-3 py-3 text-right">Semula / Murni (Rp)</th>
-                                <th class="px-3 py-3 text-right">Bertambah / (Berkurang)</th>
-                                <th class="px-3 py-3 text-right">Menjadi / PAK (Rp)</th>
-                                <th class="px-3 py-3 text-center rounded-tr-xl">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-pembiayaan" class="divide-y divide-slate-200"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- ===================================================================== -->
-            <!-- MODUL 08: PENATAUSAHAAN (SPP, BKU & PAJAK PPN/PPH)                    -->
+            <!-- MODUL 08: PENATAUSAHAAN (PENERIMAAN KAS, SPP, BKU & PAJAK PPN/PPH)    -->
             <!-- ===================================================================== -->
             <section id="mod-penatausahaan" class="module-view hidden space-y-6">
                 <div>
@@ -1481,10 +1154,10 @@
             </section>
 
             <!-- ===================================================================== -->
-            <!-- MODUL 09: PUSAT LAPORAN RESMI (8 FORMAT SIAP CETAK / PDF)             -->
+            <!-- MODUL 09: PUSAT LAPORAN RESMI (9 FORMAT SIAP CETAK / PDF)             -->
             <!-- ===================================================================== -->
             <section id="mod-laporan" class="module-view hidden space-y-6">
-                <!-- Toolbar 8 Format Laporan Resmi -->
+                <!-- Toolbar 9 Format Laporan Resmi -->
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3 no-print">
                     <div class="flex flex-wrap gap-1.5">
                         <button onclick="switchReportFormat('rpjmdes')" id="btn-rep-rpjmdes" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">1. Matriks RPJMDes 6 Th</button>
@@ -1494,7 +1167,8 @@
                         <button onclick="switchReportFormat('penjabaran')" id="btn-rep-penjabaran" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">5. Penjabaran Perkades</button>
                         <button onclick="switchReportFormat('rab')" id="btn-rep-rab" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">6. RAB Rinci (Murni vs PAK)</button>
                         <button onclick="switchReportFormat('bku')" id="btn-rep-bku" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">7. BKU & Pembantu Pajak</button>
-                        <button onclick="switchReportFormat('ba')" id="btn-rep-ba" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">8. BA Penetapan</button>
+                        <button onclick="switchReportFormat('lra')" id="btn-rep-lra" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">8. LPJ Realisasi (LRA)</button>
+                        <button onclick="switchReportFormat('ba')" id="btn-rep-ba" class="rep-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">9. BA Penetapan</button>
                     </div>
                     <button onclick="window.print()" class="px-4 py-2 rounded-xl bg-tealgov-700 hover:bg-tealgov-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
                         <i data-lucide="printer" class="w-4 h-4"></i> Cetak / Simpan PDF
@@ -1512,20 +1186,19 @@
     <!-- JAVASCRIPT CORE ENGINE (SISKEUDES FULL CYCLE: RPJMDES -> PAK)         -->
     <!-- ===================================================================== -->
     <script>
-        const STORAGE_KEY = 'siskeudes_fullcycle_v207';
-        const SESSION_KEY = 'siskeudes_session_v207';
+        const STORAGE_KEY = 'siskeudes_fullcycle_v208';
+        const SESSION_KEY = 'siskeudes_session_v208';
         const IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 
-        // Definisi Hak Akses Per Role (RBAC)
         const ROLE_PERMISSIONS = {
             ADMIN: {
                 label: 'Admin / Operator Desa',
-                writeScopes: ['PARAMETER', 'PERENCANAAN', 'PENDAPATAN', 'BELANJA', 'PEMBIAYAAN', 'PENATAUSAHAAN', 'ANGGARAN', 'ADMIN_ONLY'],
+                writeScopes: ['ADMIN_ONLY', 'PARAMETER', 'PERENCANAAN', 'PENDAPATAN', 'BELANJA', 'PEMBIAYAAN', 'PENATAUSAHAAN', 'ANGGARAN'],
                 canManageUsers: true
             },
             SEKDES: {
                 label: 'Sekretaris Desa / Evaluator',
-                writeScopes: ['PARAMETER', 'PERENCANAAN'],
+                writeScopes: ['PARAMETER', 'PERENCANAAN', 'ANGGARAN'],
                 canManageUsers: false
             },
             BENDAHARA: {
@@ -1538,6 +1211,18 @@
                 writeScopes: [],
                 canManageUsers: false
             }
+        };
+
+        // STRUKTUR PEJABAT DEFINITIF PEMERINTAH DESA RIDOGALIH (DIPATENKAN)
+        const FIXED_PEJABAT_RIDOGALIH = {
+            kades: 'KOMARUDIN',
+            sekdes: 'ALEK KOMANG',
+            kaurKeu: 'AGUS SANJAYA',
+            kaurPer: 'RAHMAT HIDAYAT',
+            kasiPem: 'MAMANG',
+            kasiKes: 'DIDIN',
+            kasiPel: 'AHMAD SAPRUDIN',
+            ketuaBpd: 'ASEP SAEPUDIN, S.PDI'
         };
 
         const BIDANG_REF = [
@@ -1652,6 +1337,16 @@
             phase: 'PAK', // 'MURNI' atau 'PAK'
             cloudSyncMode: false,
             users: [],
+            paguSumberDana: {
+                DDS: { murni: 1120000000, pak: 1145000000 },
+                ADD: { murni: 465000000, pak: 482000000 },
+                PAD: { murni: 45000000, pak: 50000000 },
+                PBH: { murni: 72000000, pak: 78500000 },
+                PBP: { murni: 130000000, pak: 150000000 },
+                PBK: { murni: 0, pak: 0 },
+                SWD: { murni: 0, pak: 0 },
+                DLL: { murni: 127000000, pak: 137500000 }
+            },
             parameter: {
                 kodeDesa: '32.16.22.2005',
                 namaDesa: 'Pemerintah Desa Ridogalih',
@@ -1663,14 +1358,7 @@
                 npwp: '00.418.925.4-413.000',
                 rekening: '0089-01-002418-30-9 (Bank BJB Cabang Cikarang)',
                 alamat: 'Jl. Raya Desa Ridogalih No. 01, Kec. Cibarusah, Kab. Bekasi 17340',
-                kades: 'H. AHMAD SYAIFUDIN, S.IP',
-                sekdes: 'AZIZ DILULLOH',
-                kaurKeu: 'SITI NURHALIZA, S.E',
-                kaurPer: 'BUDI SANTOSO',
-                kasiPem: 'DEDI SUPRIADI',
-                kasiKes: 'HENDRA GUNAWAN',
-                kasiPel: 'RINA MARLINA',
-                ketuaBpd: 'DRS. H. MAMAN SUHERMAN',
+                ...FIXED_PEJABAT_RIDOGALIH,
                 perdesRpjm: 'Perdes No. 02 Tahun 2025 tanggal 28 Maret 2025',
                 perdesRkp: 'Perdes No. 05 Tahun 2026 tanggal 29 September 2026',
                 perdesApbdes: 'Perdes No. 07 Tahun 2026 tanggal 30 Desember 2026',
@@ -1809,10 +1497,13 @@
                 { id: 2, kode: '6.2.2.01', kelompok: '6.2. Pengeluaran Pembiayaan', uraian: 'Penyertaan Modal Desa pada BUMDes Maju Bersama', sumber: 'DDS', murni: 247000000, pak: 229000000 }
             ],
             bku: [
-                { id: 1, tanggal: '2027-02-25', nomor: '0001/SPP/2027', kegiatanId: 101, uraian: 'Pembayaran Siltap Kades, Perangkat & BPD Triwulan I', nilai: 102750000, jenisPajak: 'PPh Pasal 21 (5%)', tarifPajak: 0.05, statusPajak: 'Sudah Disetor' },
-                { id: 2, tanggal: '2027-04-18', nomor: '0002/SPP/2027', kegiatanId: 202, uraian: 'Pencairan Tahap I Rabat Beton Dusun I & II', nilai: 185000000, jenisPajak: 'PPN 11% + PPh 22 (1.5%)', tarifPajak: 0.125, statusPajak: 'Sudah Disetor' },
-                { id: 3, tanggal: '2027-06-10', nomor: '0003/SPP/2027', kegiatanId: 401, uraian: 'Belanja Bibit, Pakan & Pembangunan Kolam Ketahanan Pangan', nilai: 145000000, jenisPajak: 'PPN 11%', tarifPajak: 0.11, statusPajak: 'Sudah Disetor' },
-                { id: 4, tanggal: '2027-07-12', nomor: '0004/SPP/2027', kegiatanId: 501, uraian: 'Penyaluran BLT Dana Desa Semester I (40 KPM x 6 Bulan)', nilai: 72000000, jenisPajak: 'Bebas Pajak', tarifPajak: 0, statusPajak: 'Sudah Disetor' }
+                { id: 101, jenisTr: 'MASUK', kanal: 'BANK', tanggal: '2027-01-05', nomor: '0001/STS/2027', pendapatanKode: '6.1.1.01', kegiatanId: null, uraian: 'Saldo Awal Rekening Kas Desa (SILPA Tahun Anggaran 2026)', nilai: 135000000, jenisPajak: 'Bebas Pajak', tarifPajak: 0, statusPajak: 'Sudah Disetor' },
+                { id: 102, jenisTr: 'MASUK', kanal: 'BANK', tanggal: '2027-02-10', nomor: '0002/STS/2027', pendapatanKode: '4.2.1.01', kegiatanId: null, uraian: 'Transfer Dana Desa (DDS) Tahap I dari RKUN ke RKD', nilai: 458000000, jenisPajak: 'Bebas Pajak', tarifPajak: 0, statusPajak: 'Sudah Disetor' },
+                { id: 103, jenisTr: 'MASUK', kanal: 'BANK', tanggal: '2027-02-15', nomor: '0003/STS/2027', pendapatanKode: '4.2.3.01', kegiatanId: null, uraian: 'Penyaluran Alokasi Dana Desa (ADD) Triwulan I & II', nilai: 241000000, jenisPajak: 'Bebas Pajak', tarifPajak: 0, statusPajak: 'Sudah Disetor' },
+                { id: 1, jenisTr: 'KELUAR', kanal: 'BANK', tanggal: '2027-02-25', nomor: '0001/SPP/2027', pendapatanKode: null, kegiatanId: 101, uraian: 'Pembayaran Siltap Kades, Perangkat & BPD Triwulan I', nilai: 102750000, jenisPajak: 'PPh Pasal 21 (5%)', tarifPajak: 0.05, statusPajak: 'Sudah Disetor' },
+                { id: 2, jenisTr: 'KELUAR', kanal: 'BANK', tanggal: '2027-04-18', nomor: '0002/SPP/2027', pendapatanKode: null, kegiatanId: 202, uraian: 'Pencairan Tahap I Rabat Beton Dusun I & II', nilai: 185000000, jenisPajak: 'PPN 11% + PPh 22 (1.5%)', tarifPajak: 0.125, statusPajak: 'Sudah Disetor' },
+                { id: 3, jenisTr: 'KELUAR', kanal: 'BANK', tanggal: '2027-06-10', nomor: '0003/SPP/2027', pendapatanKode: null, kegiatanId: 401, uraian: 'Belanja Bibit, Pakan & Pembangunan Kolam Ketahanan Pangan', nilai: 145000000, jenisPajak: 'PPN 11%', tarifPajak: 0.11, statusPajak: 'Sudah Disetor' },
+                { id: 4, jenisTr: 'KELUAR', kanal: 'TUNAI', tanggal: '2027-07-12', nomor: '0004/SPP/2027', pendapatanKode: null, kegiatanId: 501, uraian: 'Penyaluran BLT Dana Desa Semester I (40 KPM x 6 Bulan)', nilai: 72000000, jenisPajak: 'Bebas Pajak', tarifPajak: 0, statusPajak: 'Sudah Disetor' }
             ]
         };
 
@@ -1846,10 +1537,10 @@
         async function ensureDefaultUsersSeeded() {
             if (Array.isArray(state.users) && state.users.length > 0) return;
             const defaultAccounts = [
-                { name: 'Operator Siskeudes Desa', identifier: 'admin.desa', role: 'ADMIN', pass: 'AdminDesa2027!' },
-                { name: 'AZIZ DILULLOH (Sekdes)', identifier: 'sekdes.ridogalih', role: 'SEKDES', pass: 'Sekdes2027!' },
-                { name: 'SITI NURHALIZA, S.E (Kaur Keu)', identifier: 'bendahara.desa', role: 'BENDAHARA', pass: 'Bendahara2027!' },
-                { name: 'DRS. H. MAMAN S (Ketua BPD)', identifier: 'bpd.viewer', role: 'BPD', pass: 'BpdViewer2027!' }
+                { name: 'Operator Siskeudes Ridogalih', identifier: 'admin.desa', role: 'ADMIN', pass: 'AdminDesa2027!' },
+                { name: 'ALEK KOMANG (Sekdes)', identifier: 'sekdes.ridogalih', role: 'SEKDES', pass: 'Sekdes2027!' },
+                { name: 'AGUS SANJAYA (Kaur Keuangan)', identifier: 'bendahara.desa', role: 'BENDAHARA', pass: 'Bendahara2027!' },
+                { name: 'ASEP SAEPUDIN, S.PDI (Ketua BPD)', identifier: 'bpd.viewer', role: 'BPD', pass: 'BpdViewer2027!' }
             ];
             const seeded = [];
             for (const acc of defaultAccounts) {
@@ -2141,6 +1832,11 @@
                     const parsed = JSON.parse(raw);
                     state = { ...JSON.parse(JSON.stringify(INITIAL_STATE)), ...parsed };
                 }
+                // Selalu pastikan struktur pejabat Desa Ridogalih paten
+                state.parameter = { ...state.parameter, ...FIXED_PEJABAT_RIDOGALIH };
+                if (!state.paguSumberDana) {
+                    state.paguSumberDana = JSON.parse(JSON.stringify(INITIAL_STATE.paguSumberDana));
+                }
             } catch (e) { console.error(e); }
         }
 
@@ -2157,7 +1853,9 @@
             const pak = keg.items.reduce((acc, it) => acc + ((Number(it.volPak) || 0) * (Number(it.hargaPak) || 0)), 0);
             const delta = pak - murni;
             const aktif = state.phase === 'MURNI' ? murni : pak;
-            const realisasi = state.bku.filter(b => b.kegiatanId === keg.id).reduce((acc, b) => acc + (Number(b.nilai) || 0), 0);
+            const realisasi = state.bku
+                .filter(b => (b.jenisTr || 'KELUAR') === 'KELUAR' && b.kegiatanId === keg.id)
+                .reduce((acc, b) => acc + (Number(b.nilai) || 0), 0);
             return { murni, pak, delta, aktif, realisasi };
         }
 
@@ -2266,15 +1964,185 @@
         function saveParameter(e) {
             e.preventDefault();
             Object.keys(state.parameter).forEach(key => {
+                if (Object.prototype.hasOwnProperty.call(FIXED_PEJABAT_RIDOGALIH, key)) return;
                 const el = document.getElementById(`par-${key}`);
                 if (el) state.parameter[key] = key === 'tahun' ? Number(el.value) : el.value.trim();
             });
+            state.parameter = { ...state.parameter, ...FIXED_PEJABAT_RIDOGALIH };
             saveState();
-            toast('Parameter desa & dasar hukum Perdes berhasil disimpan!');
+            toast('Parameter desa & dasar hukum Perdes berhasil disimpan (Struktur Pejabat Desa Ridogalih tetap paten)!');
         }
 
         // =====================================================================
-        // MODUL 03: RPJMDES (6 TAHUN)
+        // MODUL 08: PENATAUSAHAAN (PENERIMAAN KAS, SPP, BKU & PAJAK)
+        // =====================================================================
+        function toggleBkuJenisForm() {
+            const jenis = document.getElementById('bku-jenis-tr').value;
+            const isMasuk = jenis === 'MASUK';
+            document.getElementById('bku-wrap-kegiatan').classList.toggle('hidden', isMasuk);
+            document.getElementById('bku-wrap-pendapatan').classList.toggle('hidden', !isMasuk);
+            document.getElementById('bku-wrap-pajak').classList.toggle('hidden', isMasuk);
+            document.getElementById('bku-wrap-status-pajak').classList.toggle('hidden', isMasuk);
+        }
+
+        function populateBkuDropdowns() {
+            const selKeg = document.getElementById('bku-kegiatan-id');
+            if (selKeg) {
+                selKeg.innerHTML = state.kegiatan.map(k => {
+                    const t = getKegiatanTotals(k);
+                    const sisa = t.aktif - t.realisasi;
+                    return `<option value="${k.id}">${k.kode} - ${k.nama} (Sisa Pagu: ${fmtRp(sisa)})</option>`;
+                }).join('');
+            }
+            const selPend = document.getElementById('bku-pendapatan-id');
+            if (selPend) {
+                const pendOpts = state.pendapatan.map(p => `<option value="${p.kode}">${p.kode} - ${p.uraian} [${p.sumber}]</option>`).join('');
+                const pembOpts = state.pembiayaan.filter(p => p.kelompok.startsWith('6.1')).map(p => `<option value="${p.kode}">${p.kode} - ${p.uraian} [${p.sumber}]</option>`).join('');
+                selPend.innerHTML = pendOpts + pembOpts;
+            }
+        }
+
+        function saveTransaksiBku(e) {
+            e.preventDefault();
+            const jenisTr = document.getElementById('bku-jenis-tr').value;
+            const kanal = document.getElementById('bku-kanal').value;
+            const nilai = Number(document.getElementById('bku-nilai').value) || 0;
+
+            if (jenisTr === 'KELUAR') {
+                const kegId = Number(document.getElementById('bku-kegiatan-id').value);
+                const keg = state.kegiatan.find(k => k.id === kegId);
+                if (!keg) return;
+                const t = getKegiatanTotals(keg);
+                const sisa = t.aktif - t.realisasi;
+                if (nilai > sisa) {
+                    toast(`SPP Ditolak! Nilai (${fmtRp(nilai)}) melebihi sisa pagu berlaku (${fmtRp(sisa)}).`, 'error');
+                    return;
+                }
+                const [jenisPajak, tarifStr] = document.getElementById('bku-jenis-pajak').value.split('|');
+                state.bku.push({
+                    id: Date.now(),
+                    jenisTr: 'KELUAR',
+                    kanal,
+                    tanggal: document.getElementById('bku-tanggal').value,
+                    nomor: document.getElementById('bku-nomor').value.trim(),
+                    pendapatanKode: null,
+                    kegiatanId: kegId,
+                    uraian: document.getElementById('bku-uraian').value.trim(),
+                    nilai,
+                    jenisPajak,
+                    tarifPajak: Number(tarifStr) || 0,
+                    statusPajak: document.getElementById('bku-status-pajak').value
+                });
+                toast('SPP Belanja berhasil dicairkan dan dicatat ke BKU!');
+            } else {
+                const pendKode = document.getElementById('bku-pendapatan-id').value;
+                state.bku.push({
+                    id: Date.now(),
+                    jenisTr: 'MASUK',
+                    kanal,
+                    tanggal: document.getElementById('bku-tanggal').value,
+                    nomor: document.getElementById('bku-nomor').value.trim(),
+                    pendapatanKode: pendKode,
+                    kegiatanId: null,
+                    uraian: document.getElementById('bku-uraian').value.trim(),
+                    nilai,
+                    jenisPajak: 'Bebas Pajak',
+                    tarifPajak: 0,
+                    statusPajak: 'Sudah Disetor'
+                });
+                toast('Penerimaan kas / transfer masuk berhasil dicatat ke BKU!');
+            }
+
+            e.target.reset();
+            toggleBkuJenisForm();
+            saveState();
+        }
+
+        function toggleStatusPajak(id) {
+            const tr = state.bku.find(b => b.id === id);
+            if (!tr || (tr.jenisTr || 'KELUAR') === 'MASUK') return;
+            tr.statusPajak = tr.statusPajak === 'Sudah Disetor' ? 'Belum Disetor' : 'Sudah Disetor';
+            saveState();
+            toast('Status setoran pajak (NTPN) diperbarui!');
+        }
+
+        function deleteBku(id) {
+            state.bku = state.bku.filter(b => b.id !== id);
+            saveState();
+            toast('Transaksi BKU dihapus.');
+        }
+
+        function renderBkuTable() {
+            populateBkuDropdowns();
+            const postur = getPosturSummary();
+            let totalMasuk = 0, totalKeluar = 0, saldoBank = 0, saldoTunai = 0, saldoBerjalan = 0, totalPajak = 0, pajakSetor = 0;
+
+            const sortedBku = [...state.bku].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+            const tbody = document.getElementById('tbody-bku');
+            tbody.innerHTML = sortedBku.map(b => {
+                const isMasuk = (b.jenisTr || 'KELUAR') === 'MASUK';
+                const kanal = b.kanal || 'BANK';
+                const nilai = Number(b.nilai) || 0;
+                const nilaiPajak = isMasuk ? 0 : Math.round(nilai * (Number(b.tarifPajak) || 0));
+
+                if (isMasuk) {
+                    totalMasuk += nilai;
+                    saldoBerjalan += nilai;
+                    if (kanal === 'BANK') saldoBank += nilai; else saldoTunai += nilai;
+                } else {
+                    totalKeluar += nilai;
+                    saldoBerjalan -= nilai;
+                    if (kanal === 'BANK') saldoBank -= nilai; else saldoTunai -= nilai;
+                    totalPajak += nilaiPajak;
+                    if (b.statusPajak === 'Sudah Disetor') pajakSetor += nilaiPajak;
+                }
+
+                const keg = !isMasuk ? state.kegiatan.find(k => k.id === b.kegiatanId) : null;
+                const refLabel = isMasuk
+                    ? `<span class="text-[10px] font-semibold text-emerald-700 block">Penerimaan Kas (${b.pendapatanKode || '4.x'})</span>`
+                    : `<span class="text-[10px] font-semibold text-tealgov-700 block">${keg ? keg.kode + ' - ' + keg.nama : '-'}</span>`;
+
+                const badgePajak = isMasuk
+                    ? `<span class="text-[10px] text-slate-400">-</span>`
+                    : (b.statusPajak === 'Sudah Disetor'
+                        ? `<button onclick="toggleStatusPajak(${b.id})" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Disetor</button>`
+                        : `<button onclick="toggleStatusPajak(${b.id})" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Belum</button>`);
+
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-3 font-mono">
+                            <span class="font-bold text-gov-900 block">${b.nomor}</span>
+                            <span class="text-[11px] text-slate-400">${b.tanggal}</span>
+                        </td>
+                        <td class="px-3 py-3">
+                            ${refLabel}
+                            <span class="font-semibold text-slate-800">${b.uraian}</span>
+                        </td>
+                        <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 rounded bg-slate-100 font-mono font-bold text-[10px]">${kanal}</span></td>
+                        <td class="px-3 py-3 text-right font-num font-bold text-emerald-700">${isMasuk ? fmtRp(nilai) : '-'}</td>
+                        <td class="px-3 py-3 text-right font-num font-bold text-slate-900">${!isMasuk ? fmtRp(nilai) : '-'}</td>
+                        <td class="px-3 py-3 text-right font-num text-amber-700">${!isMasuk && nilaiPajak > 0 ? fmtRp(nilaiPajak) : '-'}</td>
+                        <td class="px-3 py-3 text-right font-num font-extrabold text-gov-900">${fmtRp(saldoBerjalan)}</td>
+                        <td class="px-3 py-3 text-center">${badgePajak}</td>
+                        <td class="px-3 py-3 text-center">
+                            <button onclick="deleteBku(${b.id})" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('bku-phase-lbl').textContent = getPhaseLabel();
+            document.getElementById('bku-total-masuk').textContent = fmtRp(totalMasuk);
+            document.getElementById('bku-total-cair').textContent = fmtRp(totalKeluar);
+            document.getElementById('bku-saldo-bank').textContent = fmtRp(saldoBank);
+            document.getElementById('bku-saldo-tunai').textContent = fmtRp(saldoTunai);
+            document.getElementById('bku-sisa-pagu').textContent = fmtRp(postur.belAktif - postur.totalRealisasi);
+            document.getElementById('bku-pajak-summary').textContent = `${fmtRp(pajakSetor)} / ${fmtRp(totalPajak)}`;
+            lucide.createIcons();
+        }
+
+        // =====================================================================
+        // MODUL 03 & 04: RPJMDES (6 TAHUN) & RKPDES TAHUNAN
         // =====================================================================
         function saveVisiMisi() {
             state.visiMisi.visi = document.getElementById('rpjm-visi').value.trim();
@@ -2302,32 +2170,26 @@
             e.target.reset();
             document.getElementById('rpjm-th3').checked = true;
             saveState();
-            toast('Program 6 tahun ditambahkan ke RPJMDes!');
+            toast('Program ditambahkan ke Matriks RPJMDes 6 Tahun!');
         }
 
-        function turunkanRpjmKeRkp(rpjmId) {
+        function transferRpjmToRkp(rpjmId) {
             const item = state.rpjmdes.find(r => r.id === rpjmId);
             if (!item) return;
-            const pkaMap = {
-                '1.': 'Kasi Pemerintahan',
-                '2.': 'Kasi Kesejahteraan',
-                '3.': 'Kasi Pelayanan',
-                '4.': 'Kasi Kesejahteraan',
-                '5.': 'Kasi Pelayanan'
-            };
-            const prefix = item.bidang.slice(0, 2);
+            const pkaMap = { '1': 'Kasi Pemerintahan', '2': 'Kasi Kesejahteraan', '3': 'Kasi Pelayanan', '4': 'Kasi Kesejahteraan', '5': 'Kasi Pelayanan' };
+            const bidNum = item.bidang.split('.')[0];
             state.rkpdes.push({
                 id: Date.now(),
                 bidang: item.bidang,
                 kegiatan: item.program,
                 lokasi: item.lokasi,
-                pka: pkaMap[prefix] || 'Kasi Kesejahteraan',
-                pagu: Math.round(item.biaya / 3),
+                pka: pkaMap[bidNum] || 'Kasi Kesejahteraan',
+                pagu: Math.round(item.biaya / 4),
                 kategori: 'Prioritas RKPDes (APBDes)',
                 status: 'Layak APBDes'
             });
             saveState();
-            toast(`Program "${item.program}" diturunkan ke RKPDes Tahun ${state.parameter.tahun}!`);
+            toast('Program RPJMDes berhasil diturunkan ke RKPDes tahun berjalan!');
         }
 
         function deleteRpjm(id) {
@@ -2337,27 +2199,24 @@
         }
 
         function renderRpjmdesTable() {
-            const tbody = document.getElementById('tbody-rpjmdes');
             document.getElementById('rpjm-periode-lbl').textContent = state.parameter.periodeRpjm;
-            const checkBadge = (v) => v
-                ? '<span class="inline-flex w-5 h-5 rounded-full bg-tealgov-700 text-white items-center justify-center font-bold text-[10px]">✓</span>'
-                : '<span class="text-slate-300">-</span>';
-
+            const tbody = document.getElementById('tbody-rpjmdes');
+            const chk = (val) => val ? '<span class="text-emerald-600 font-extrabold">✓</span>' : '<span class="text-slate-300">-</span>';
             tbody.innerHTML = state.rpjmdes.map(r => `
                 <tr class="hover:bg-slate-50">
                     <td class="px-3 py-3 font-medium text-slate-600">${r.bidang}</td>
-                    <td class="px-3 py-3 font-bold text-slate-900">${r.program}</td>
+                    <td class="px-3 py-3 font-bold text-slate-900">${r.program} <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px]">${r.sumber}</span></td>
                     <td class="px-3 py-3 text-slate-600">${r.lokasi}</td>
-                    <td class="px-3 py-3 text-center">${checkBadge(r.th1)}</td>
-                    <td class="px-3 py-3 text-center">${checkBadge(r.th2)}</td>
-                    <td class="px-3 py-3 text-center bg-teal-50/60">${checkBadge(r.th3)}</td>
-                    <td class="px-3 py-3 text-center">${checkBadge(r.th4)}</td>
-                    <td class="px-3 py-3 text-center">${checkBadge(r.th5)}</td>
-                    <td class="px-3 py-3 text-center">${checkBadge(r.th6)}</td>
+                    <td class="px-3 py-3 text-center">${chk(r.th1)}</td>
+                    <td class="px-3 py-3 text-center">${chk(r.th2)}</td>
+                    <td class="px-3 py-3 text-center bg-teal-50/50">${chk(r.th3)}</td>
+                    <td class="px-3 py-3 text-center">${chk(r.th4)}</td>
+                    <td class="px-3 py-3 text-center">${chk(r.th5)}</td>
+                    <td class="px-3 py-3 text-center">${chk(r.th6)}</td>
                     <td class="px-3 py-3 text-right font-num font-bold text-gov-900">${fmtRp(r.biaya)}</td>
                     <td class="px-3 py-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="turunkanRpjmKeRkp(${r.id})" class="px-2 py-1 rounded-lg bg-tealgov-700 text-white hover:bg-tealgov-600 text-[11px] font-bold whitespace-nowrap" title="Turunkan ke RKPDes Tahun Berjalan">→ RKPDes</button>
+                            <button onclick="transferRpjmToRkp(${r.id})" class="px-2 py-1 rounded-lg bg-teal-50 text-tealgov-700 hover:bg-teal-100 text-[11px] font-bold" title="Turunkan ke RKPDes">→ RKPDes</button>
                             <button onclick="deleteRpjm(${r.id})" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         </div>
                     </td>
@@ -2366,9 +2225,6 @@
             lucide.createIcons();
         }
 
-        // =====================================================================
-        // MODUL 04: RKPDES & DU-RKPDES
-        // =====================================================================
         function saveRkpItem(e) {
             e.preventDefault();
             const kat = document.getElementById('rkp-kategori').value;
@@ -2384,7 +2240,7 @@
             });
             e.target.reset();
             saveState();
-            toast('Usulan RKPDes berhasil ditambahkan!');
+            toast('Usulan RKPDes / DU-RKPDes disimpan!');
         }
 
         function transferRkpToApbdes(rkpId) {
@@ -3154,7 +3010,7 @@
                 </div>
             `).join('');
 
-            // Kontrol Keseimbangan per Sumber Dana
+            // Kontrol Keseimbangan & Edit Nominal Pagu Pemerintah per Sumber Dana
             const tbodySd = document.getElementById('tbody-rekap-sumber');
             tbodySd.innerHTML = SUMBER_DANA_REF.map(sd => {
                 const masukPend = state.pendapatan
@@ -3618,7 +3474,8 @@
                     </table>
                 ` + ttdHtml(p.tglPenetapanPak);
             } else if (activeReport === 'bku') {
-                let sumBruto = 0, sumPajak = 0;
+                let sumDebet = 0, sumKredit = 0, sumPajak = 0, saldoRun = 0;
+                const sortedBku = [...state.bku].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
                 area.innerHTML = kopHtml(
                     `BUKU KAS UMUM (BKU) & BUKU PEMBANTU PAJAK`,
                     `TAHUN ANGGARAN ${p.tahun} • NPWP DESA: ${p.npwp}`,
@@ -3628,34 +3485,38 @@
                         <thead class="bg-slate-200 font-bold">
                             <tr>
                                 <th class="border border-slate-800 px-2 py-1.5">Tanggal</th>
-                                <th class="border border-slate-800 px-2 py-1.5">No. Bukti / SPP</th>
+                                <th class="border border-slate-800 px-2 py-1.5">No. Bukti</th>
                                 <th class="border border-slate-800 px-2 py-1.5">Uraian Transaksi</th>
-                                <th class="border border-slate-800 px-2 py-1.5 text-right">Pengeluaran Bruto (Rp)</th>
-                                <th class="border border-slate-800 px-2 py-1.5 text-right">Potongan Pajak (Rp)</th>
-                                <th class="border border-slate-800 px-2 py-1.5 text-center">Status NTPN</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right">Penerimaan (Rp)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right">Pengeluaran (Rp)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right">Pajak (Rp)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right">Saldo Kas (Rp)</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${state.bku.map(b => {
-                                const pjk = Math.round(b.nilai * b.tarifPajak);
-                                sumBruto += b.nilai;
-                                sumPajak += pjk;
+                            ${sortedBku.map(b => {
+                                const isMasuk = (b.jenisTr || 'KELUAR') === 'MASUK';
+                                const val = Number(b.nilai) || 0;
+                                const pjk = isMasuk ? 0 : Math.round(val * (Number(b.tarifPajak) || 0));
+                                if (isMasuk) { sumDebet += val; saldoRun += val; } else { sumKredit += val; saldoRun -= val; sumPajak += pjk; }
                                 return `
                                     <tr>
                                         <td class="border border-slate-800 px-2 py-1.5 font-mono">${b.tanggal}</td>
                                         <td class="border border-slate-800 px-2 py-1.5 font-mono">${b.nomor}</td>
-                                        <td class="border border-slate-800 px-2 py-1.5">${b.uraian} (${b.jenisPajak})</td>
-                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(b.nilai)}</td>
-                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(pjk)}</td>
-                                        <td class="border border-slate-800 px-2 py-1.5 text-center">${b.statusPajak}</td>
+                                        <td class="border border-slate-800 px-2 py-1.5">${b.uraian} ${!isMasuk && pjk > 0 ? '(' + b.jenisPajak + ')' : ''}</td>
+                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${isMasuk ? fmtNum(val) : '-'}</td>
+                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${!isMasuk ? fmtNum(val) : '-'}</td>
+                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${pjk > 0 ? fmtNum(pjk) : '-'}</td>
+                                        <td class="border border-slate-800 px-2 py-1.5 text-right font-num font-bold">${fmtNum(saldoRun)}</td>
                                     </tr>
                                 `;
                             }).join('')}
                             <tr class="bg-slate-100 font-bold">
-                                <td colspan="3" class="border border-slate-800 px-2 py-2 text-right">JUMLAH TOTAL BKU & PAJAK</td>
-                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(sumBruto)}</td>
+                                <td colspan="3" class="border border-slate-800 px-2 py-2 text-right">JUMLAH TOTAL & SALDO AKHIR BKU</td>
+                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(sumDebet)}</td>
+                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(sumKredit)}</td>
                                 <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(sumPajak)}</td>
-                                <td class="border border-slate-800"></td>
+                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(saldoRun)}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -3674,6 +3535,100 @@
                         </div>
                     </div>
                 `;
+            } else if (activeReport === 'lra') {
+                const realPendTotal = state.bku.filter(b => (b.jenisTr || 'KELUAR') === 'MASUK' && (b.pendapatanKode || '').startsWith('4.')).reduce((s, b) => s + (Number(b.nilai) || 0), 0);
+                const realPembTotal = state.bku.filter(b => (b.jenisTr || 'KELUAR') === 'MASUK' && (b.pendapatanKode || '').startsWith('6.')).reduce((s, b) => s + (Number(b.nilai) || 0), 0);
+                const pctTotBel = postur.belAktif > 0 ? ((postur.totalRealisasi / postur.belAktif) * 100).toFixed(1) : '0.0';
+
+                area.innerHTML = kopHtml(
+                    `LAPORAN REALISASI PELAKSANAAN APBDes (LPJ PERTANGGUNGJAWABAN)`,
+                    `TAHUN ANGGARAN ${p.tahun} • BASIS ANGGARAN BERLAKU (${getPhaseLabel().toUpperCase()})`,
+                    `Permendagri No. 20 Tahun 2018 Pasal 68–70 & ${p.perdesPak}`
+                ) + `
+                    <table class="w-full text-[11px] border border-slate-800">
+                        <thead class="bg-slate-200 font-bold">
+                            <tr>
+                                <th class="border border-slate-800 px-2 py-1.5 w-20">Kode Rek</th>
+                                <th class="border border-slate-800 px-2 py-1.5">Uraian Pendapatan, Belanja dan Pembiayaan</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right w-32">Anggaran (Rp)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right w-32">Realisasi BKU (Rp)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right w-32">Lebih / (Kurang)</th>
+                                <th class="border border-slate-800 px-2 py-1.5 text-right w-20">Serapan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="bg-slate-100 font-bold">
+                                <td class="border border-slate-800 px-2 py-1.5">4.</td>
+                                <td class="border border-slate-800 px-2 py-1.5">PENDAPATAN DESA</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(postur.pendAktif)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(realPendTotal)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(realPendTotal - postur.pendAktif)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${postur.pendAktif > 0 ? ((realPendTotal / postur.pendAktif) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                            ${state.pendapatan.map(x => {
+                                const ang = state.phase === 'MURNI' ? Number(x.murni) : Number(x.pak);
+                                const real = state.bku.filter(b => (b.jenisTr || 'KELUAR') === 'MASUK' && b.pendapatanKode === x.kode).reduce((s, b) => s + (Number(b.nilai) || 0), 0);
+                                const pct = ang > 0 ? ((real / ang) * 100).toFixed(1) : '0.0';
+                                return `
+                                    <tr>
+                                        <td class="border border-slate-800 px-2 py-1 font-mono">${x.kode}</td>
+                                        <td class="border border-slate-800 px-2 py-1">${x.uraian}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(ang)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(real)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(real - ang)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${pct}%</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+
+                            <tr class="bg-slate-100 font-bold">
+                                <td class="border border-slate-800 px-2 py-1.5">5.</td>
+                                <td class="border border-slate-800 px-2 py-1.5">BELANJA DESA (5 BIDANG)</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(postur.belAktif)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(postur.totalRealisasi)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${fmtNum(postur.belAktif - postur.totalRealisasi)}</td>
+                                <td class="border border-slate-800 px-2 py-1.5 text-right font-num">${pctTotBel}%</td>
+                            </tr>
+                            ${BIDANG_REF.map((bName, i) => {
+                                const list = state.kegiatan.filter(k => k.bidang === bName);
+                                const bAng = list.reduce((s, k) => s + getKegiatanTotals(k).aktif, 0);
+                                const bReal = list.reduce((s, k) => s + getKegiatanTotals(k).realisasi, 0);
+                                const bPct = bAng > 0 ? ((bReal / bAng) * 100).toFixed(1) : '0.0';
+                                return `
+                                    <tr class="font-bold bg-slate-50">
+                                        <td class="border border-slate-800 px-2 py-1">5.${i+1}</td>
+                                        <td class="border border-slate-800 px-2 py-1">${bName}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(bAng)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(bReal)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(bAng - bReal)}</td>
+                                        <td class="border border-slate-800 px-2 py-1 text-right font-num">${bPct}%</td>
+                                    </tr>
+                                    ${list.map(k => {
+                                        const t = getKegiatanTotals(k);
+                                        const kPct = t.aktif > 0 ? ((t.realisasi / t.aktif) * 100).toFixed(1) : '0.0';
+                                        return `
+                                            <tr>
+                                                <td class="border border-slate-800 px-2 py-1 font-mono pl-4">${k.kode}</td>
+                                                <td class="border border-slate-800 px-2 py-1">${k.nama}</td>
+                                                <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(t.aktif)}</td>
+                                                <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(t.realisasi)}</td>
+                                                <td class="border border-slate-800 px-2 py-1 text-right font-num">${fmtNum(t.aktif - t.realisasi)}</td>
+                                                <td class="border border-slate-800 px-2 py-1 text-right font-num">${kPct}%</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                `;
+                            }).join('')}
+
+                            <tr class="font-extrabold bg-slate-200">
+                                <td class="border border-slate-800 px-2 py-2" colspan="2">SILPA REALISASI (PENERIMAAN KAS + SILPA LALU − REALISASI BELANJA)</td>
+                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum(postur.silpaAktif)}</td>
+                                <td class="border border-slate-800 px-2 py-2 text-right font-num">${fmtNum((realPendTotal + realPembTotal) - postur.totalRealisasi)}</td>
+                                <td class="border border-slate-800 px-2 py-2" colspan="2"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                ` + ttdHtml(p.tglPenetapanPak);
             } else if (activeReport === 'ba') {
                 area.innerHTML = kopHtml(
                     `BERITA ACARA KESEPAKATAN BERSAMA PEMERINTAH DESA DAN BPD`,
@@ -3706,8 +3661,88 @@
         }
 
         // =====================================================================
-        // BACKUP JSON, RESTORE & RESET DEFAULT
+        // EXPORT WORKBOOK EXCEL (.XLSX) MULTI-SHEET & BACKUP JSON
         // =====================================================================
+        function exportExcelWorkbook() {
+            if (typeof XLSX === 'undefined') {
+                toast('Library Excel (SheetJS) belum termuat. Periksa koneksi internet Anda.', 'error');
+                return;
+            }
+            const wb = XLSX.utils.book_new();
+            const p = state.parameter;
+            const postur = getPosturSummary();
+
+            // Sheet 1: Profil & Struktur Desa Ridogalih
+            const sheetProfil = [
+                ['PARAMETER & STRUKTUR PEMERINTAH DESA'],
+                ['Kode Kemendagri', p.kodeDesa],
+                ['Nama Pemerintah Desa', p.namaDesa],
+                ['Kecamatan / Kabupaten / Provinsi', `${p.kecamatan} / ${p.kabupaten} / ${p.provinsi}`],
+                ['Tahun Anggaran', p.tahun],
+                ['NPWP Desa', p.npwp],
+                ['Rekening Kas Desa (RKD)', p.rekening],
+                [''],
+                ['STRUKTUR PEJABAT PPKD & PKA (PATEN)'],
+                ['Kepala Desa (PKPKD)', p.kades],
+                ['Sekretaris Desa (Koordinator PPKD)', p.sekdes],
+                ['Kaur Keuangan (Bendahara Desa)', p.kaurKeu],
+                ['Kaur Perencanaan (PKA)', p.kaurPer],
+                ['Kasi Pemerintahan (PKA Bid. 1)', p.kasiPem],
+                ['Kasi Kesejahteraan (PKA Bid. 2 & 4)', p.kasiKes],
+                ['Kasi Pelayanan (PKA Bid. 3 & 5)', p.kasiPel],
+                ['Ketua BPD', p.ketuaBpd]
+            ];
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetProfil), 'Profil_Desa');
+
+            // Sheet 2: Pagu Sumber Dana
+            const sheetPagu = [
+                ['Kode', 'Uraian Sumber Dana', 'Pagu Pemerintah Murni (Rp)', 'Pagu Pemerintah PAK (Rp)'],
+                ...SUMBER_DANA_REF.map(sd => [
+                    sd.kode,
+                    sd.nama,
+                    Number(state.paguSumberDana[sd.kode]?.murni || 0),
+                    Number(state.paguSumberDana[sd.kode]?.pak || 0)
+                ])
+            ];
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetPagu), 'Pagu_Sumber_Dana');
+
+            // Sheet 3: Pendapatan (Akun 4)
+            const sheetPend = [
+                ['Kode Rekening', 'Kelompok', 'Uraian Pendapatan', 'Sumber Dana', 'Anggaran Murni (Rp)', 'Perubahan / Selisih (Rp)', 'Anggaran PAK (Rp)'],
+                ...state.pendapatan.map(x => [x.kode, x.kelompok, x.uraian, x.sumber, Number(x.murni), Number(x.pak) - Number(x.murni), Number(x.pak)]),
+                ['', '', 'TOTAL PENDAPATAN', '', postur.pendMurni, postur.pendPak - postur.pendMurni, postur.pendPak]
+            ];
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetPend), 'Pendapatan_Akun4');
+
+            // Sheet 4: Belanja & RAB Rinci (Akun 5)
+            const sheetBel = [
+                ['Kode Keg', 'Bidang', 'Nama Kegiatan', 'PKA', 'Kode Objek', 'Uraian Komponen', 'Sumber Dana', 'Satuan', 'Vol Murni', 'Harga Murni', 'Jumlah Murni (Rp)', 'Vol PAK', 'Harga PAK', 'Jumlah PAK (Rp)']
+            ];
+            state.kegiatan.forEach(k => {
+                k.items.forEach(it => {
+                    const m = (Number(it.volMurni) || 0) * (Number(it.hargaMurni) || 0);
+                    const pk = (Number(it.volPak) || 0) * (Number(it.hargaPak) || 0);
+                    sheetBel.push([k.kode, k.bidang, k.nama, k.pka, it.kodeObjek, it.uraian, it.sumber, it.satuan, it.volMurni, it.hargaMurni, m, it.volPak, it.hargaPak, pk]);
+                });
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetBel), 'Belanja_RAB_Akun5');
+
+            // Sheet 5: BKU Kas & Pajak
+            const sheetBku = [
+                ['Tanggal', 'No Bukti', 'Jenis Transaksi', 'Kanal Kas', 'Uraian', 'Penerimaan (Debet)', 'Pengeluaran (Kredit)', 'Jenis Pajak', 'Potongan Pajak (Rp)', 'Status NTPN'],
+                ...state.bku.map(b => {
+                    const isMasuk = (b.jenisTr || 'KELUAR') === 'MASUK';
+                    const val = Number(b.nilai) || 0;
+                    const pjk = isMasuk ? 0 : Math.round(val * (Number(b.tarifPajak) || 0));
+                    return [b.tanggal, b.nomor, isMasuk ? 'Penerimaan Kas' : 'Pengeluaran SPP', b.kanal || 'BANK', b.uraian, isMasuk ? val : 0, !isMasuk ? val : 0, b.jenisPajak, pjk, b.statusPajak];
+                })
+            ];
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetBku), 'BKU_Kas_Pajak');
+
+            XLSX.writeFile(wb, `SISKEUDES_${p.namaDesa.replace(/\s+/g, '_')}_TA${p.tahun}.xlsx`);
+            toast('File Excel (.xlsx) multi-sheet berhasil diekspor!');
+        }
+
         function exportJSON() {
             const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
